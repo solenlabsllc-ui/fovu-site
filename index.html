@@ -2,7 +2,359 @@
 <html lang="en">
 <head>
 <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-50DSQFRY3C"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-50DSQFRY3C">
+// ─── FOVU 1.10 RUNTIME LOGIC: GMA, PARTY MODE, 18+ ADULT, SEASONS & BETA ───
+var isBeta = window.location.search.indexOf('beta=1') !== -1 || localStorage.getItem('fovu_beta') === '1';
+if(window.location.search.indexOf('beta=1') !== -1) localStorage.setItem('fovu_beta', '1');
+if(window.location.search.indexOf('beta=0') !== -1) localStorage.removeItem('fovu_beta');
+
+// GMA State
+var gmaGuesses = 0;
+var gmaMatches = 0;
+var currentGmaGuess = '';
+
+function openGmaSheet(e){
+  if(e) e.stopPropagation();
+  var midUpsell = document.getElementById('midUpsell');
+  if(midUpsell) midUpsell.remove();
+
+  var modal = document.getElementById('gmaModal');
+  if(!modal) return;
+  document.getElementById('gmaInput').value = '';
+  document.getElementById('gmaStepInput').style.display = 'block';
+  document.getElementById('gmaStepLocked').style.display = 'none';
+  document.getElementById('gmaStepReveal').style.display = 'none';
+  modal.style.display = 'flex';
+  setTimeout(function(){
+    var inp = document.getElementById('gmaInput');
+    if(inp) inp.focus();
+  }, 100);
+}
+
+function lockInGmaGuess(e){
+  if(e) e.stopPropagation();
+  var inp = document.getElementById('gmaInput');
+  var val = inp ? inp.value.trim() : '';
+  currentGmaGuess = val || '(no words, just vibes)';
+  document.getElementById('gmaStepInput').style.display = 'none';
+  document.getElementById('gmaStepLocked').style.display = 'block';
+}
+
+function revealGmaGuess(e){
+  if(e) e.stopPropagation();
+  document.getElementById('gmaRevealedText').textContent = '"' + currentGmaGuess + '"';
+  document.getElementById('gmaStepLocked').style.display = 'none';
+  document.getElementById('gmaStepReveal').style.display = 'block';
+}
+
+function recordGmaScore(isMatch, e){
+  if(e) e.stopPropagation();
+  gmaGuesses++;
+  if(isMatch) gmaMatches++;
+  closeGmaModal(e);
+  nextCard();
+}
+
+function closeGmaModal(e){
+  if(e) e.stopPropagation();
+  var modal = document.getElementById('gmaModal');
+  if(modal) modal.style.display = 'none';
+}
+
+function toggleGmaAuto(e){
+  if(e) e.stopPropagation();
+  var curr = localStorage.getItem('fovu_gma_auto') === '1';
+  var next = !curr;
+  localStorage.setItem('fovu_gma_auto', next ? '1' : '0');
+  updateGmaAutoUI();
+}
+
+function updateGmaAutoUI(){
+  var autoBtn = document.getElementById('gmaAutoToggle');
+  if(!autoBtn) return;
+  var isAuto = localStorage.getItem('fovu_gma_auto') === '1';
+  autoBtn.textContent = isAuto ? '🎯 Guess: On' : '🎯 Guess: Off';
+  autoBtn.style.color = isAuto ? '#f0874a' : 'rgba(255,255,255,.6)';
+  autoBtn.style.borderColor = isAuto ? 'rgba(240,135,74,.4)' : 'rgba(255,255,255,.15)';
+}
+
+// Party Mode State
+var partyPlayers = JSON.parse(localStorage.getItem('fovu_party_players') || '["Player 1","Player 2","Player 3"]');
+var partyReaderIndex = 0;
+
+function showPartySetup(){
+  renderPartyPlayers();
+  var adultRow = document.getElementById('partyAdultRow');
+  var adultOn = localStorage.getItem('fovu_adult_on') === '1';
+  if(adultRow) adultRow.style.display = adultOn ? 'flex' : 'none';
+  showScreen('partySetup');
+}
+
+function renderPartyPlayers(){
+  var container = document.getElementById('partyPlayerList');
+  if(!container) return;
+  container.innerHTML = '';
+  partyPlayers.forEach(function(p, i){
+    var row = document.createElement('div');
+    row.className = 'party-player-row';
+    row.innerHTML = '<span style="font-size:16px;">👤</span>'
+      + '<input type="text" class="party-player-input" value="' + p + '" placeholder="Player ' + (i+1) + '" onchange="partyPlayers[' + i + ']=this.value.trim()||(\'Player ' + (i+1) + '\');savePartyPlayers();">'
+      + (partyPlayers.length > 3 ? '<button class="party-player-del" onclick="removePartyPlayer(' + i + ')">×</button>' : '');
+    container.appendChild(row);
+  });
+  var countEl = document.getElementById('partyPlayerCount');
+  if(countEl) countEl.textContent = partyPlayers.length + ' players';
+  var addBtn = document.getElementById('btnAddPartyPlayer');
+  if(addBtn) addBtn.style.display = partyPlayers.length < 8 ? 'flex' : 'none';
+}
+
+function addPartyPlayer(){
+  if(partyPlayers.length >= 8) return;
+  partyPlayers.push('Player ' + (partyPlayers.length + 1));
+  savePartyPlayers();
+  renderPartyPlayers();
+}
+
+function removePartyPlayer(index){
+  if(partyPlayers.length <= 3) return;
+  partyPlayers.splice(index, 1);
+  savePartyPlayers();
+  renderPartyPlayers();
+}
+
+function savePartyPlayers(){
+  localStorage.setItem('fovu_party_players', JSON.stringify(partyPlayers));
+}
+
+function startPartyMode(){
+  savePartyPlayers();
+  currentMode = 'party';
+  partyReaderIndex = 0;
+
+  var pool = (QUESTIONS.party || []).slice();
+  if(isUnlocked('friends') && QUESTIONS.friends){
+    pool = pool.concat(QUESTIONS.friends);
+  }
+
+  var adultBox = document.getElementById('partyAdultCheckbox');
+  var adultOn = localStorage.getItem('fovu_adult_on') === '1';
+  if(adultOn && adultBox && adultBox.checked && QUESTIONS.roast){
+    var friendRoasts = QUESTIONS.roast.filter(function(c){ return c.who === 'friend'; });
+    pool = pool.concat(friendRoasts);
+  }
+
+  // 12 cards, shuffled, no halfway milestone, no breathers
+  deck = shuffle(pool).slice(0, 12);
+  cardIndex = 0;
+  showCard();
+  showScreen('game');
+}
+
+function showPartyPass(){
+  var overlay = document.getElementById('partyPassOverlay');
+  var nameEl = document.getElementById('partyPassName');
+  if(!overlay || !nameEl) return;
+  var nextName = partyPlayers[partyReaderIndex] || ('Player ' + (partyReaderIndex + 1));
+  nameEl.textContent = 'Pass to ' + nextName;
+  overlay.style.display = 'flex';
+}
+
+function dismissPartyPass(e){
+  if(e) e.stopPropagation();
+  var overlay = document.getElementById('partyPassOverlay');
+  if(overlay) overlay.style.display = 'none';
+  var card = document.getElementById('mainCard');
+  card.classList.remove('card-exit-left','card-exit-right');
+  cardIndex++;
+  showCard();
+}
+
+function triggerPointCountdown(e){
+  if(e) e.stopPropagation();
+  var overlay = document.getElementById('partyPointOverlay');
+  var countEl = document.getElementById('partyPointCount');
+  var subEl = document.getElementById('partyPointSub');
+  if(!overlay || !countEl) return;
+
+  overlay.style.display = 'flex';
+  countEl.textContent = '3';
+  subEl.textContent = 'Get ready to point...';
+
+  setTimeout(function(){
+    countEl.textContent = '2';
+  }, 700);
+
+  setTimeout(function(){
+    countEl.textContent = '1';
+  }, 1400);
+
+  setTimeout(function(){
+    countEl.textContent = '👉 POINT!';
+    subEl.textContent = 'Whoever got the most fingers explains!';
+  }, 2100);
+
+  setTimeout(function(){
+    overlay.style.display = 'none';
+  }, 3800);
+}
+
+// 18+ Adult Content Toggle & Modal Logic
+function onAdultToggleChange(el){
+  if(el.checked){
+    if(localStorage.getItem('fovu_adult_ok') !== '1'){
+      el.checked = false;
+      var modal = document.getElementById('adultConfirmModal');
+      if(modal) modal.style.display = 'flex';
+    } else {
+      localStorage.setItem('fovu_adult_on', '1');
+      updateAdultUI();
+    }
+  } else {
+    localStorage.setItem('fovu_adult_on', '0');
+    updateAdultUI();
+  }
+}
+
+function confirmAdultOk(){
+  localStorage.setItem('fovu_adult_ok', '1');
+  localStorage.setItem('fovu_adult_on', '1');
+  var modal = document.getElementById('adultConfirmModal');
+  if(modal) modal.style.display = 'none';
+  updateAdultUI();
+}
+
+function cancelAdultOk(){
+  var modal = document.getElementById('adultConfirmModal');
+  if(modal) modal.style.display = 'none';
+  var toggle = document.getElementById('adultContentToggle');
+  if(toggle) toggle.checked = false;
+  localStorage.setItem('fovu_adult_on', '0');
+  updateAdultUI();
+}
+
+function updateAdultUI(){
+  var adultOn = localStorage.getItem('fovu_adult_on') === '1';
+  var toggle = document.getElementById('adultContentToggle');
+  if(toggle) toggle.checked = adultOn;
+
+  var container = document.getElementById('adultPacksContainer');
+  if(container) container.style.display = adultOn ? 'block' : 'none';
+
+  var partyAdult = document.getElementById('partyAdultRow');
+  if(partyAdult) partyAdult.style.display = adultOn ? 'flex' : 'none';
+
+  updateBundleUI();
+}
+
+function updateBundleUI(){
+  var count = ALL_PACK_IDS.length;
+  var wasPrice = (count * 1.99).toFixed(2);
+  var desc = document.getElementById('bundleDesc');
+  if(desc) desc.textContent = 'All ' + count + ' premium packs · New packs included free as released';
+  var was = document.getElementById('bundleWasPrice');
+  if(was) was.textContent = '$' + wasPrice;
+  var adultNote = document.getElementById('bundleAdultNote');
+  if(adultNote){
+    var adultOn = localStorage.getItem('fovu_adult_on') === '1';
+    adultNote.style.display = adultOn ? 'none' : 'block';
+  }
+}
+
+// Page initialization & Beta check
+function initFovuEnhancements(){
+  if(isBeta){
+    var btnParty = document.getElementById('btnPartyEntry');
+    if(btnParty) btnParty.style.display = 'block';
+    var splashParty = document.getElementById('splashPartyCard');
+    if(splashParty) splashParty.style.display = 'block';
+    var adultTitle = document.getElementById('adultSectionTitle');
+    if(adultTitle) adultTitle.style.display = 'flex';
+  } else {
+    var adultTitle = document.getElementById('adultSectionTitle');
+    if(adultTitle) adultTitle.style.display = 'none';
+  }
+  updateGmaAutoUI();
+  updateAdultUI();
+  updateBundleUI();
+  updateSeasonalStoreTiles();
+}
+
+window.addEventListener('load', function(){
+  initFovuEnhancements();
+  checkSeasonalPopup();
+});
+
+</script>
+<!-- GMA MODAL (Guess My Answer Bottom Sheet) -->
+<div id="gmaModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9500;align-items:flex-end;justify-content:center;">
+  <div id="gmaSheet" style="background:#1a120a;border:1px solid rgba(240,135,74,.35);border-radius:24px 24px 0 0;padding:26px 22px max(44px,calc(env(safe-area-inset-bottom,0px)+24px));width:100%;max-width:500px;text-align:center;box-sizing:border-box;" onclick="event.stopPropagation()">
+    <!-- Step 1: Input -->
+    <div id="gmaStepInput">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(240,135,74,.9);margin-bottom:8px;">🎯 Prediction Mini-Game</div>
+      <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;">Guesser: what will they say?</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:16px;">Type what you predict your date will answer before they speak.</div>
+      <input type="text" id="gmaInput" maxlength="140" placeholder="Type your guess (max 140 chars)..." style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:14px 16px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;outline:none;margin-bottom:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')lockInGmaGuess(event)">
+      <button onclick="lockInGmaGuess(event)" style="width:100%;background:linear-gradient(135deg,#f0874a,#c45e22);color:#fff;border:none;border-radius:50px;padding:15px;font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">Lock in my guess 🔒</button>
+      <button onclick="closeGmaModal(event)" style="background:none;border:none;color:rgba(255,255,255,.35);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer;padding:6px;">Cancel</button>
+    </div>
+    <!-- Step 2: Locked -->
+    <div id="gmaStepLocked" style="display:none;">
+      <div style="font-size:40px;margin-bottom:10px;">🔒</div>
+      <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;">Guess locked!</div>
+      <div style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:22px;line-height:1.5;">Now your date answers out loud.<br>When they finish speaking, tap Reveal.</div>
+      <button onclick="revealGmaGuess(event)" style="width:100%;background:linear-gradient(135deg,#f0874a,#c45e22);color:#fff;border:none;border-radius:50px;padding:15px;font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">Reveal my guess ✦</button>
+      <button onclick="closeGmaModal(event)" style="background:none;border:none;color:rgba(255,255,255,.35);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer;padding:6px;">Dismiss</button>
+    </div>
+    <!-- Step 3: Reveal & Score -->
+    <div id="gmaStepReveal" style="display:none;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(240,135,74,.9);margin-bottom:8px;">Locked Guess</div>
+      <div id="gmaRevealedText" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 16px;color:#fff;font-size:16px;font-style:italic;margin-bottom:18px;line-height:1.5;word-break:break-word;"></div>
+      <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:14px;">Did their spoken answer match?</div>
+      <div style="display:flex;gap:12px;">
+        <button onclick="recordGmaScore(true, event)" style="flex:1;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:14px;padding:15px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;cursor:pointer;">✅ Match</button>
+        <button onclick="recordGmaScore(false, event)" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);border-radius:14px;padding:15px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;cursor:pointer;">❌ No match</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POINT ON 3 COUNTDOWN OVERLAY -->
+<div id="partyPointOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9600;align-items:center;justify-content:center;flex-direction:column;" onclick="event.stopPropagation()">
+  <div id="partyPointCount" class="point-anim" style="font-family:'Playfair Display',serif;font-size:96px;font-weight:900;color:#f0874a;margin-bottom:12px;">3</div>
+  <div id="partyPointSub" style="font-size:18px;color:rgba(255,255,255,.8);font-weight:700;">Get ready to point...</div>
+</div>
+
+<!-- PARTY PASS PHONE OVERLAY -->
+<div id="partyPassOverlay" style="display:none;position:fixed;inset:0;background:#0d0a06;z-index:9600;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;" onclick="event.stopPropagation()">
+  <div style="font-size:56px;margin-bottom:16px;">📱</div>
+  <div style="font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#f0874a;margin-bottom:8px;">NEXT PLAYER</div>
+  <div id="partyPassName" style="font-family:'Playfair Display',serif;font-size:32px;font-weight:900;color:#fff;margin-bottom:12px;">Pass to Sarah</div>
+  <div style="font-size:14px;color:rgba(255,255,255,.5);margin-bottom:28px;line-height:1.5;max-width:280px;">Hand the phone to the next reader. Tap below when ready.</div>
+  <button onclick="dismissPartyPass(event)" style="width:100%;max-width:280px;background:linear-gradient(135deg,#f0874a,#c45e22);border:none;border-radius:50px;padding:18px;color:#fff;font-family:'Outfit',sans-serif;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(240,135,74,.4);">I have the phone →</button>
+</div>
+
+<!-- 18+ ADULT CONFIRMATION MODAL -->
+<div id="adultConfirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9700;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:#1a120a;border:1px solid rgba(244,114,182,.35);border-radius:24px;padding:32px 24px;width:100%;max-width:380px;text-align:center;" onclick="event.stopPropagation()">
+    <div style="font-size:44px;margin-bottom:12px;">🔞</div>
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:8px;">18+ Adult Content</div>
+    <div style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:24px;line-height:1.6;">These packs contain mature, explicit, uncensored questions and savage roasts. You must be 18 years of age or older to enable them.</div>
+    <button onclick="confirmAdultOk()" style="width:100%;background:linear-gradient(135deg,#f0874a,#c45e22);border:none;border-radius:60px;padding:16px;color:#fff;font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px;">I am 18 or older</button>
+    <button onclick="cancelAdultOk()" style="background:none;border:none;color:rgba(255,255,255,.4);font-family:'Outfit',sans-serif;font-size:14px;cursor:pointer;">Cancel</button>
+  </div>
+</div>
+
+<!-- SEASONAL WELCOME MODAL -->
+<div id="seasonalModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9700;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:#1a120a;border:1px solid rgba(240,135,74,.35);border-radius:24px;padding:32px 24px;width:100%;max-width:380px;text-align:center;" onclick="event.stopPropagation()">
+    <div id="seasonalModalIcon" style="font-size:48px;margin-bottom:12px;">🎄</div>
+    <div id="seasonalModalTitle" style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:8px;">Holiday Pack is back!</div>
+    <div id="seasonalModalDesc" style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:24px;line-height:1.6;">Celebrate the season with free conversational cards. Free all month long!</div>
+    <button id="seasonalModalPlayBtn" style="width:100%;background:linear-gradient(135deg,#f0874a,#c45e22);border:none;border-radius:60px;padding:16px;color:#fff;font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px;">Play Now Free →</button>
+    <button onclick="document.getElementById('seasonalModal').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.4);font-family:'Outfit',sans-serif;font-size:14px;cursor:pointer;">Dismiss</button>
+  </div>
+</div>
+
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -26,7 +378,7 @@
 <meta name="twitter:description" content="Put the phone between you and let the cards do the talking. Works on a first date or your hundredth. Free decks to start, extra packs $1.99."/>
 <meta name="twitter:image" content="https://fovuapp.app/og-image.png"/>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Fovu","alternateName":"Fovu Date Mode","url":"https://fovuapp.app/","image":"https://fovuapp.app/og-image.png","description":"Fovu is a conversation card game for dates, from first date to date night. Two people, one phone, no sign-up.","applicationCategory":"GameApplication","operatingSystem":"Android, Web","installUrl":"https://play.google.com/store/apps/details?id=app.fovu","publisher":{"@type":"Organization","name":"SolenLabs LLC","url":"https://solenlabsllc.com"},"offers":[{"@type":"Offer","name":"Free decks","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Extra card pack, one-time","price":"1.99","priceCurrency":"USD"},{"@type":"Offer","name":"The Full Spark Bundle, all 12 extra packs, one-time","price":"6.99","priceCurrency":"USD"}]}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Fovu","alternateName":"Fovu Date Mode","url":"https://fovuapp.app/","image":"https://fovuapp.app/og-image.png","description":"Fovu is a conversation card game for dates, from first date to date night. Two people, one phone, no sign-up.","applicationCategory":"GameApplication","operatingSystem":"Android, Web","installUrl":"https://play.google.com/store/apps/details?id=app.fovu","publisher":{"@type":"Organization","name":"SolenLabs LLC","url":"https://solenlabsllc.com"},"offers":[{"@type":"Offer","name":"Free decks","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Extra card pack, one-time","price":"1.99","priceCurrency":"USD"},{"@type":"Offer","name":"The Full Spark Bundle, all 16 extra packs, one-time","price":"6.99","priceCurrency":"USD"}]}
 </script>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='18' fill='%230d0a06'/%3E%3Cdefs%3E%3ClinearGradient id='fg' x1='0' y1='0' x2='80' y2='80' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0%25' stop-color='%23fde68a'/%3E%3Cstop offset='50%25' stop-color='%23f0874a'/%3E%3Cstop offset='100%25' stop-color='%23c45e22'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M22 62C22 62 14 40 23 27C30 17 38 19 42 28' stroke='url(%23fg)' stroke-width='4.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M58 62C58 62 66 40 57 27C50 17 42 19 42 28' stroke='url(%23fg)' stroke-width='4.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='42' cy='23' r='5' fill='%23fde68a'/%3E%3Cline x1='42' y1='12' x2='42' y2='17' stroke='%23fde68a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='34' y1='15' x2='37' y2='19' stroke='%23fde68a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='50' y1='15' x2='47' y2='19' stroke='%23fde68a' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='18' fill='%230d0a06'/%3E%3Cdefs%3E%3ClinearGradient id='fg' x1='0' y1='0' x2='80' y2='80' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0%25' stop-color='%23fde68a'/%3E%3Cstop offset='50%25' stop-color='%23f0874a'/%3E%3Cstop offset='100%25' stop-color='%23c45e22'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M22 62C22 62 14 40 23 27C30 17 38 19 42 28' stroke='url(%23fg)' stroke-width='4.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M58 62C58 62 66 40 57 27C50 17 42 19 42 28' stroke='url(%23fg)' stroke-width='4.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='42' cy='23' r='5' fill='%23fde68a'/%3E%3C/svg%3E">
@@ -64,7 +416,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
 .screen.active{opacity:1;pointer-events:all;}
 
 /* Scrollable screens — content taller than viewport */
-#splash,#ageSelect,#modeSelect,#couplesMode,#endScreen,#ratingScreen,#matchScreen{
+#splash,#ageSelect,#modeSelect,#couplesMode,#endScreen,#ratingScreen,#matchScreen,#partySetup{
   overflow-y:auto;
   overflow-x:hidden;
   justify-content:flex-start;
@@ -578,6 +930,53 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
 .card-exit-right{animation:cardRight .22s ease-in forwards;}
 @keyframes cardLeft{to{opacity:0;transform:translateX(-100px) rotate(-10deg) scale(.9);}}
 @keyframes cardRight{to{opacity:0;transform:translateX(100px) rotate(10deg) scale(.9);}}
+
+/* Fovu 1.10 Additions: GMA, Party Mode, Adult & Seasonal */
+.party-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 14px;
+  padding: 8px 14px;
+}
+.party-player-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+}
+.party-player-del {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.35);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+.party-player-del:hover {
+  color: #cf4444;
+}
+.pack-card.pack-seasonal-locked {
+  opacity: .55;
+  filter: grayscale(40%);
+  cursor: not-allowed;
+}
+@keyframes pulsePop {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.point-anim {
+  animation: pulsePop .4s ease-out forwards;
+}
+
 </style>
 </head>
 <body>
@@ -607,6 +1006,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
       <span class="rating-icon">😬</span>
       <div><div class="rating-label">We need different cards</div><div class="rating-hint">These weren't quite right for us</div></div>
     </div>
+  </div>
+  <div id="gmaRatingScore" style="display:none;background:rgba(240,135,74,.12);border:1px solid rgba(240,135,74,.3);border-radius:16px;padding:14px 18px;margin-top:16px;max-width:340px;margin-left:auto;margin-right:auto;text-align:center;">
+    <div style="font-size:12px;font-weight:700;color:#f0874a;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">🎯 Guess My Answer</div>
+    <div id="gmaRatingText" style="font-size:15px;font-weight:800;color:#fff;margin-bottom:2px;"></div>
+    <div id="gmaRatingMsg" style="font-size:12px;color:rgba(255,255,255,.6);"></div>
   </div>
 </div>
 
@@ -640,6 +1044,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
   </div>
   <div class="match-skip">
     <button class="btn-match-go" onclick="showSplash()">Let's Go →</button>
+    <button class="btn-party-go" id="btnPartyEntry" onclick="showPartySetup()" style="margin-top:12px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.2);border-radius:50px;padding:12px 24px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:none;width:100%;max-width:280px;margin-left:auto;margin-right:auto;">🎉 Party Mode (3-8 players)</button>
   </div>
 </div>
 
@@ -707,6 +1112,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
       <div style="font-size:28px;margin-bottom:6px;">👯</div>
       <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:2px;">Friends Mode</div>
       <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.4;">Not a date? Works here too</div>
+    </div>
+
+    <div id="splashPartyCard" onclick="showPartySetup()" style="display:none;cursor:pointer;background:linear-gradient(135deg,rgba(251,191,36,.12),rgba(240,135,74,.08));border:1.5px solid rgba(251,191,36,.3);border-radius:18px;padding:16px 14px;text-align:center;transition:all .2s;" onmouseover="this.style.background='rgba(251,191,36,.18)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(251,191,36,.12),rgba(240,135,74,.08))'">
+      <div style="font-size:28px;margin-bottom:6px;">🎉</div>
+      <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:2px;">Party Mode</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.4;">3-8 players pass & play</div>
     </div>
 
     <div onclick="showHowItWorks()" style="cursor:pointer;background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.1);border-radius:18px;padding:16px 14px;text-align:center;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,.09)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">
@@ -833,10 +1244,43 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
   <div class="mode-grid" id="modeGrid" style="z-index:1;"></div>
 </div>
 
+<!-- PARTY SETUP -->
+<div class="screen" id="partySetup">
+  <div style="font-size:42px;margin-bottom:8px;">🎉</div>
+  <div class="screen-title" style="margin-bottom:6px;">Party Mode</div>
+  <p class="screen-sub" style="margin-bottom:20px;max-width:320px;margin-left:auto;margin-right:auto;">Pass-and-play for 3 to 8 players. Rotating reader, countdown roasts, and group debates.</p>
+
+  <div style="width:100%;max-width:340px;margin:0 auto;text-align:left;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.7);">Players</span>
+      <span id="partyPlayerCount" style="font-size:12px;color:rgba(240,135,74,.9);font-weight:700;">3 players</span>
+    </div>
+
+    <div id="partyPlayerList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+
+    <button onclick="addPartyPlayer()" id="btnAddPartyPlayer" style="width:100%;background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.2);border-radius:14px;padding:12px;color:rgba(255,255,255,.75);font-family:'Outfit',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <span>+</span> Add Player
+    </button>
+
+    <div id="partyAdultRow" style="display:none;background:rgba(244,114,182,.1);border:1.5px solid rgba(244,114,182,.3);border-radius:16px;padding:14px 16px;margin-bottom:20px;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#fff;">Include 18+ Adult Cards</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);line-height:1.4;">Mix in unfiltered roasts & adult prompts</div>
+      </div>
+      <input type="checkbox" id="partyAdultCheckbox" style="width:20px;height:20px;cursor:pointer;accent-color:#f0874a;">
+    </div>
+
+    <button onclick="startPartyMode()" style="width:100%;background:linear-gradient(135deg,#f0874a,#c45e22);border:none;border-radius:50px;padding:18px;color:#fff;font-family:'Outfit',sans-serif;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(240,135,74,.4);margin-bottom:12px;">Start Party →</button>
+    <button onclick="showSplash()" style="width:100%;background:none;border:none;color:rgba(255,255,255,.4);font-family:'Outfit',sans-serif;font-size:14px;cursor:pointer;padding:10px;">← Back to Home</button>
+  </div>
+</div>
+
 <!-- GAME -->
 <div class="screen" id="game">
   <div class="game-header">
     <button class="game-back" onclick="showSplash()">←</button>
+    <button id="gmaAutoToggle" onclick="toggleGmaAuto(event)" style="display:none;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;color:rgba(255,255,255,.7);font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" title="Automatically open Guess My Answer on every question">🎯 Guess: Off</button>
+    <div id="partyReaderBadge" style="display:none;font-size:12px;font-weight:700;color:#f0874a;background:rgba(240,135,74,.15);border:1px solid rgba(240,135,74,.35);border-radius:20px;padding:4px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">🎤 Reader</div>
     <div class="game-progress"><div class="game-progress-fill" id="progressFill"></div></div>
     <div class="game-count" id="gameCount"></div>
   </div>
@@ -849,6 +1293,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
         <div class="card-category" id="cardCat"></div>
         <div class="card-question" id="cardQ">Loading...</div>
         <div class="card-hint" id="cardHint"></div>
+        <div id="gmaBtnWrap" style="margin-top:16px;display:none;">
+          <button id="gmaBtn" onclick="openGmaSheet(event)" style="background:linear-gradient(135deg,rgba(240,135,74,.22),rgba(196,94,34,.16));border:1.5px solid rgba(240,135,74,.45);border-radius:50px;padding:8px 18px;color:#fff;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(240,135,74,.2);">🎯 Guess My Answer</button>
+        </div>
+        <div id="partyPointWrap" style="margin-top:16px;display:none;">
+          <button id="partyPointBtn" onclick="triggerPointCountdown(event)" style="background:linear-gradient(135deg,#f0874a,#c45e22);border:none;border-radius:50px;padding:10px 22px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 16px rgba(240,135,74,.35);">👉 Point on 3!</button>
+        </div>
       </div>
     </div>
   </div>
@@ -869,6 +1319,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
   <div class="end-badge" id="endBadge">🏆 Challenge Complete</div>
   <div class="end-title" id="endTitle">You made it.</div>
   <p class="end-meaning" id="endMeaning">Making it to the end of Fovu means one thing: you two are genuinely enjoying each other's company. That is not nothing. That is actually kind of everything.</p>
+  <div id="gmaEndScore" style="display:none;background:rgba(240,135,74,.12);border:1px solid rgba(240,135,74,.3);border-radius:16px;padding:14px 18px;margin:0 auto 16px;max-width:340px;text-align:center;">
+    <div style="font-size:12px;font-weight:700;color:#f0874a;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">🎯 Prediction Results</div>
+    <div id="gmaEndText" style="font-size:15px;font-weight:800;color:#fff;margin-bottom:2px;"></div>
+    <div id="gmaEndMsg" style="font-size:12px;color:rgba(255,255,255,.6);"></div>
+  </div>
   <div class="devu-bridge" id="devuBridge">
     <div class="bridge-label" id="bridgeLabel">❤️ Ready for something real?</div>
     <div class="bridge-text" id="bridgeText">Fovu lights the spark. Bonva keeps it burning — daily relationship check-ins, AI coaching, and guided journeys built for couples who want to grow together.</div>
@@ -1030,12 +1485,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
       <div class="pack-desc">One drives, one reads. Makes hours disappear.</div>
       <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('roadtrip')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/dRmbJ2er59z3bZT73n3wQ0f">Buy</a></div>
     </div>
-    <div class="pack-card" style="--pack-color:rgba(244,114,182,.15);" onclick="playPackFree('holiday')">
-      <span class="pack-badge pb-free">FREE</span>
+    <div class="pack-card" id="storePackHoliday" style="--pack-color:rgba(244,114,182,.15);" onclick="handleSeasonalPackClick('holiday')">
+      <span class="pack-badge pb-free" id="badgePackHoliday">FREE</span>
       <span class="pack-emoji">🎄</span>
       <div class="pack-name">Holiday Pack</div>
-      <div class="pack-desc">Seasonal, warm, nostalgic. Free every December.</div>
-      <div class="pack-footer"><span class="pack-price free">Seasonal free</span><button class="pack-btn pack-btn-free" onclick="event.stopPropagation();playPackFree('holiday')">Play</button></div>
+      <div class="pack-desc">Seasonal, warm, nostalgic. Free Dec 1–31.</div>
+      <div class="pack-footer"><span class="pack-price free" id="pricePackHoliday">Seasonal free</span><button class="pack-btn pack-btn-free" id="btnPackHoliday" onclick="event.stopPropagation();handleSeasonalPackClick('holiday')">Play</button></div>
     </div>
   </div>
 
@@ -1046,12 +1501,53 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
     </div>
     <div class="bundle-info">
       <div class="bundle-title">The Full Spark Bundle</div>
-      <div class="bundle-desc">All 12 premium packs · New packs included free as released</div>
+      <div class="bundle-desc" id="bundleDesc">All 16 premium packs · New packs included free as released</div>
+      <div id="bundleAdultNote" style="font-size:11px;color:rgba(255,255,255,.45);margin-top:4px;">Includes 4 adult packs you can turn on anytime.</div>
     </div>
     <div class="bundle-pricing">
       <div class="bundle-price">$6.99</div>
-      <div class="bundle-was">$23.88</div>
+      <div class="bundle-was" id="bundleWasPrice">$31.84</div>
       <a class="pack-btn pack-btn-buy" style="margin-top:6px;padding:7px 14px;" href="https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g">Get All</a>
+    </div>
+  </div>
+
+  <div class="store-section-title" id="adultSectionTitle" style="display:flex;align-items:center;justify-content:space-between;margin-top:24px;">
+    <span>🔞 18+ Adult Packs</span>
+    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;color:rgba(255,255,255,.6);">
+      <input type="checkbox" id="adultContentToggle" onchange="onAdultToggleChange(this)" style="cursor:pointer;accent-color:#f0874a;">
+      <span>Show 18+</span>
+    </label>
+  </div>
+  <div id="adultPacksContainer" style="display:none;width:100%;">
+    <div class="pack-grid">
+      <div class="pack-card" style="--pack-color:rgba(244,63,94,.18);" onclick="buyPack('raunchy')">
+        <span class="pack-badge pb-hot">🔞 18+</span>
+        <span class="pack-emoji">🔥</span>
+        <div class="pack-name">Raunchy</div>
+        <div class="pack-desc">Spicy, unfiltered intimate questions. Zero embarrassment allowed.</div>
+        <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('raunchy')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_raunchy">Buy</a></div>
+      </div>
+      <div class="pack-card" style="--pack-color:rgba(236,72,153,.18);" onclick="buyPack('flirty')">
+        <span class="pack-badge pb-hot">🔞 18+</span>
+        <span class="pack-emoji">💋</span>
+        <div class="pack-name">Flirty</div>
+        <div class="pack-desc">Seductive tension and romantic teasing. Find out where you stand.</div>
+        <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('flirty')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_flirty">Buy</a></div>
+      </div>
+      <div class="pack-card" style="--pack-color:rgba(168,85,247,.18);" onclick="buyPack('nofilter')">
+        <span class="pack-badge pb-hot">🔞 18+</span>
+        <span class="pack-emoji">🤬</span>
+        <div class="pack-name">Curse Word / No Filter</div>
+        <div class="pack-desc">Raw, blunt, swearing permitted. Brutal honesty only.</div>
+        <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('nofilter')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_nofilter">Buy</a></div>
+      </div>
+      <div class="pack-card" style="--pack-color:rgba(234,88,12,.18);" onclick="buyPack('roast')">
+        <span class="pack-badge pb-hot">🔞 18+</span>
+        <span class="pack-emoji">🎯</span>
+        <div class="pack-name">Roast</div>
+        <div class="pack-desc">Playful insults & savage teasing. Date roasts & friend roasts.</div>
+        <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('roast')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_roast">Buy</a></div>
+      </div>
     </div>
   </div>
 
@@ -1632,23 +2128,333 @@ var QUESTIONS = {
     {type:'funny',emoji:'💫',cat:'Breather',q:'What is something cosy that you do at this time of year that you would not do any other time?',hint:'The specific ritual. The blanket. The drink. The terrible television.'},
     {type:'deep',emoji:'❤️',cat:'Holiday',q:'What is one thing you want to make sure you say to someone in your life before the year ends?',hint:'The overdue thing. The thing you keep meaning to say.'},
   ],
+
+  // ─── PARTY MODE (GROUP PROMPTS) ───
+  // DRAFT: Cameron approves these during app testing
+  party: [
+    {type:'normal',emoji:'🎯',cat:'Most Likely To',q:'Who here is most likely to accidentally join a cult and not realize it for six months?',hint:'Point on 3.'},
+    {type:'normal',emoji:'💬',cat:'Everyone Answers',q:'Everyone: What is the most chaotic thing that has ever happened to you on a vacation?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'📱',cat:'Most Likely To',q:'Who here is most likely to text their ex at 2am and immediately throw their phone across the room?',hint:'Point on 3.'},
+    {type:'normal',emoji:'🍕',cat:'Everyone Answers',q:'Everyone: What is your absolute most unhinged food opinion that you will defend to the grave?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'🧟',cat:'Most Likely To',q:'Who here would survive the shortest amount of time in a zombie apocalypse?',hint:'Point on 3. Whoever gets the most fingers explains.'},
+    {type:'normal',emoji:'💼',cat:'Everyone Answers',q:'Everyone: What was the worst job or interview experience you have ever had?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'🚨',cat:'Most Likely To',q:'Who here is most likely to get banned from an all-you-can-eat buffet or amusement park?',hint:'Point on 3.'},
+    {type:'normal',emoji:'👀',cat:'Everyone Answers',q:'Everyone: What was your honest first impression of the person sitting to your right?',hint:'Go around, starting left of the reader. Be nice-ish.'},
+    {type:'normal',emoji:'✈️',cat:'Most Likely To',q:'Who here is most likely to pack an entire suitcase for a two-day weekend trip?',hint:'Point on 3.'},
+    {type:'normal',emoji:'🎵',cat:'Everyone Answers',q:'Everyone: What is your most embarrassing guilty pleasure song that you know every single word to?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'💸',cat:'Most Likely To',q:'Who here is most likely to make an impulsive purchase at 3am that ruins their monthly budget?',hint:'Point on 3.'},
+    {type:'normal',emoji:'🤫',cat:'Everyone Answers',q:'Everyone: What is a weird rumor or completely false fact someone once believed about you?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'📺',cat:'Most Likely To',q:'Who here is most likely to end up on a reality TV dating show as the villain?',hint:'Point on 3.'},
+    {type:'normal',emoji:'🔥',cat:'Everyone Answers',q:'Everyone: If this group had a collective reality TV show, what would the dramatic title be?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'🚗',cat:'Most Likely To',q:'Who here is the most terrifying backseat driver in any moving vehicle?',hint:'Point on 3.'},
+    {type:'normal',emoji:'💡',cat:'Everyone Answers',q:'Everyone: What is the dumbest piece of advice you were ever given that you actually followed?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'💌',cat:'Most Likely To',q:'Who here is the biggest secret hopeless romantic, despite claiming otherwise?',hint:'Point on 3.'},
+    {type:'normal',emoji:'👑',cat:'Everyone Answers',q:'Everyone: If you were forced to enter a talent show in 10 minutes, what would your act be?',hint:'Go around, starting left of the reader.'},
+    {type:'normal',emoji:'🕵️',cat:'Most Likely To',q:'Who here has FBI-level investigative skills when stalking someone on Instagram?',hint:'Point on 3.'},
+    {type:'normal',emoji:'🏆',cat:'Everyone Answers',q:'Everyone: What is a totally useless skill or achievement you possess that you are oddly proud of?',hint:'Go around, starting left of the reader.'},
+  ],
+
+  // ─── RAUNCHY (18+) ───
+  // DRAFT: Cameron approves these during app testing
+  raunchy: [
+    {type:'hot',emoji:'🔥',cat:'Raunchy',q:'What is a subtle physical touch that instantly gets your attention?',hint:'Be specific.'},
+    {type:'hot',emoji:'🌶️',cat:'Raunchy',q:'Lights completely off, dim candlelight, or leave the lights on?',hint:'Tell the real truth.'},
+    {type:'hot',emoji:'💋',cat:'Raunchy',q:'What is something someone did on a date that made sexual tension shoot through the roof?',hint:'The moment the vibe shifted.'},
+    {type:'hot',emoji:'🤫',cat:'Raunchy',q:'What is a private fantasy you have had that you rarely or never mention out loud?',hint:'No judgment in this room.'},
+    {type:'hot',emoji:'📍',cat:'Raunchy',q:'What is the most adventurous or risky place you have ever hooked up or made out?',hint:'How close did you come to getting caught?'},
+    {type:'hot',emoji:'🗣️',cat:'Raunchy',q:'Physical touch or whispered words: which one works on you significantly faster?',hint:'Explain your reasoning.'},
+    {type:'hot',emoji:'🚫',cat:'Raunchy',q:'What is an instant mood-killer in the bedroom that immediately shuts things down for you?',hint:'The unforgivable turn-off.'},
+    {type:'hot',emoji:'✨',cat:'Raunchy',q:'What makes a sexual encounter genuinely unforgettable versus just good?',hint:'The emotional or physical ingredient.'},
+    {type:'hot',emoji:'💭',cat:'Raunchy',q:'Have you ever had a dream about someone that permanently altered the chemistry between you the next day?',hint:'Did they ever find out?'},
+    {type:'hot',emoji:'😘',cat:'Raunchy',q:'What was the single best kiss of your life and what specifically made it so good?',hint:'The location, the buildup, or the person.'},
+    {type:'hot',emoji:'⚡',cat:'Raunchy',q:'Slow and teasing, or urgent and intense: what is your default preference?',hint:'Does it change depending on mood?'},
+    {type:'hot',emoji:'👗',cat:'Raunchy',q:'What is an article of clothing or style that you find irresistibly attractive on a partner?',hint:'The thing that always works.'},
+    {type:'hot',emoji:'👀',cat:'Raunchy',q:'What is your secret physical tell when you are intensely attracted to the person sitting across from you?',hint:'Eye contact, fidgeting, voice change.'},
+    {type:'hot',emoji:'📲',cat:'Raunchy',q:'What is the most daring text message or photo you have ever hit send on?',hint:'How long did you stare at the screen before sending?'},
+    {type:'hot',emoji:'🛑',cat:'Raunchy',q:'What is a bedroom boundary or rule that is 100% non-negotiable for you?',hint:'Clear communication is essential.'},
+    {type:'hot',emoji:'🎯',cat:'Raunchy',q:'What is one thing you wish partners would take the initiative on more often without having to be asked?',hint:'Hint at what you like.'},
+    {type:'hot',emoji:'✋',cat:'Raunchy',q:'What is your favorite area of the body to have touched, kissed, or caressed?',hint:'Don\'t be shy.'},
+    {type:'hot',emoji:'👑',cat:'Raunchy',q:'Do you prefer being the one in control, or having someone confidently take control of you?',hint:'The power dynamic.'},
+    {type:'hot',emoji:'🧨',cat:'Raunchy',q:'What was your most scandalous, spontaneous, or ill-advised romantic encounter?',hint:'Looking back, zero regrets or pure regret?'},
+    {type:'hot',emoji:'💬',cat:'Raunchy',q:'What is the hottest compliment someone has ever given you during an intimate moment?',hint:'Words you still remember.'},
+    {type:'hot',emoji:'🧲',cat:'Raunchy',q:'Have you ever stayed with someone far longer than you should have purely because the physical chemistry was off the charts?',hint:'Be honest.'},
+    {type:'hot',emoji:'🧠',cat:'Raunchy',q:'What is something that turns you on intellectually before anything physical even happens?',hint:'Wit, competence, debate.'},
+    {type:'hot',emoji:'👂',cat:'Raunchy',q:'What happens to you when someone leans in and whispers directly against your ear or neck?',hint:'The physical reaction.'},
+    {type:'hot',emoji:'⏰',cat:'Raunchy',q:'First thing in the morning, lazy afternoon, or late at night when the world is asleep?',hint:'Your peak time of day.'},
+    {type:'hot',emoji:'🔮',cat:'Raunchy',q:'What is something you have been curious to try in intimacy but haven\'t felt comfortable bringing up yet?',hint:'The unexplored bucket list.'},
+    {type:'hot',emoji:'👁️',cat:'Raunchy',q:'What is the most intense, electrifying eye contact you have ever held with someone?',hint:'Where were you and who was it?'},
+    {type:'hot',emoji:'🛁',cat:'Raunchy',q:'What is something you consider surprisingly intimate that doesn\'t actually involve taking clothes off?',hint:'Shampooing hair, eye contact, cooking together.'},
+    {type:'hot',emoji:'📊',cat:'Raunchy',q:'On a scale of 1 to 10, how adventurous do you consider yourself behind closed doors?',hint:'Back it up with an example.'},
+    {type:'hot',emoji:'🎵',cat:'Raunchy',q:'Do you have or need music on in the background, or do you prefer total raw sound?',hint:'Your audio preference.'},
+    {type:'hot',emoji:'🥂',cat:'Raunchy',q:'If tonight took a spontaneous turn into private territory, what would be the ideal opener?',hint:'Paint the picture.'},
+  ],
+
+  // ─── FLIRTY (18+) ───
+  // DRAFT: Cameron approves these during app testing
+  flirty: [
+    {type:'hot',emoji:'💋',cat:'Flirty',q:'What was the very first thought that crossed your mind when you saw me tonight?',hint:'The honest first impression.'},
+    {type:'hot',emoji:'✨',cat:'Flirty',q:'If you were planning to kiss me before this night ends, how would you orchestrate it?',hint:'The setup and execution.'},
+    {type:'hot',emoji:'😏',cat:'Flirty',q:'What is the most charming or disarming move someone has ever pulled on you on a date?',hint:'The one that completely worked.'},
+    {type:'hot',emoji:'🧩',cat:'Flirty',q:'Do you consider yourself playing hard to get, or are you an open book when you like someone?',hint:'How do people figure you out?'},
+    {type:'hot',emoji:'💡',cat:'Flirty',q:'What subtle hint do you drop when you want the other person to make the first move?',hint:'The green light signal.'},
+    {type:'hot',emoji:'🚗',cat:'Flirty',q:'If we walked out of here right this second and went anywhere in the city, where are we heading?',hint:'The spontaneous escape.'},
+    {type:'hot',emoji:'😉',cat:'Flirty',q:'What is your signature flirty look or smile that you know rarely fails?',hint:'Demonstrate it right now.'},
+    {type:'hot',emoji:'⏱️',cat:'Flirty',q:'How many minutes into meeting someone does it usually take you to know if real romantic chemistry exists?',hint:'Five minutes or two hours?'},
+    {type:'hot',emoji:'📖',cat:'Flirty',q:'What is your favorite romantic trope, and have you ever lived a version of it in real life?',hint:'Enemies to lovers, friends to lovers, instant sparks.'},
+    {type:'hot',emoji:'🍸',cat:'Flirty',q:'What is the best way to catch your eye across a crowded bar or restaurant?',hint:'The move that stands out.'},
+    {type:'hot',emoji:'🎭',cat:'Flirty',q:'Are you more drawn to quiet mystery or radiant, unapologetic confidence?',hint:'Which one pulls you in harder?'},
+    {type:'hot',emoji:'💬',cat:'Flirty',q:'What is the most memorable romantic line or compliment anyone has ever said to your face?',hint:'Words that gave you butterflies.'},
+    {type:'hot',emoji:'🔮',cat:'Flirty',q:'If you could peek inside my thoughts for exactly thirty seconds right now, what question would you want answered?',hint:'What are you curious about?'},
+    {type:'hot',emoji:'🌹',cat:'Flirty',q:'What does your absolute dream date night look like from start to finish?',hint:'Don\'t hold back on the details.'},
+    {type:'hot',emoji:'👀',cat:'Flirty',q:'Do you believe in love at first sight, or do you need to walk past me one more time?',hint:'Cheesy lines that actually work.'},
+    {type:'hot',emoji:'🫠',cat:'Flirty',q:'What is a simple romantic gesture that instantly softens your defenses and melts your heart?',hint:'Forehead kisses, unexpected flowers, remembering small details.'},
+    {type:'hot',emoji:'👗',cat:'Flirty',q:'What is something about my outfit, hair, or expression right now that caught your attention?',hint:'Compliments are mandatory.'},
+    {type:'hot',emoji:'🃏',cat:'Flirty',q:'Between the two of us sitting here, who do you think has smoother game?',hint:'Back up your claim.'},
+    {type:'hot',emoji:'🦋',cat:'Flirty',q:'When was the last time you felt legitimate butterflies in your stomach on a date?',hint:'What triggered it?'},
+    {type:'hot',emoji:'🚨',cat:'Flirty',q:'What unspoken dating rule do you think is complete nonsense and love ignoring?',hint:'Waiting three days to text, splitting checks, who calls first.'},
+    {type:'hot',emoji:'🎲',cat:'Flirty',q:'If you had to dare me to do one harmless, playful thing right now, what would it be?',hint:'Make it interesting.'},
+    {type:'hot',emoji:'🎶',cat:'Flirty',q:'What song instantly sets an undeniable romantic mood for you in the car or living room?',hint:'Your go-to track.'},
+    {type:'hot',emoji:'🔥',cat:'Flirty',q:'Are you a fan of the slow-burn tension or do you prefer the instant fireworks explosion?',hint:'The pacing of attraction.'},
+    {type:'hot',emoji:'🎁',cat:'Flirty',q:'What is the sweetest, most thoughtful thing someone has ever done to impress you on a date?',hint:'The effort that counted.'},
+    {type:'hot',emoji:'📈',cat:'Flirty',q:'What is your personal indicator that a date has gone from "polite" to "unmistakably great"?',hint:'The tipping point.'},
+    {type:'hot',emoji:'🤗',cat:'Flirty',q:'What is your favorite kind of hug from someone you are genuinely into?',hint:'The lingering goodbye hug, the waist pull.'},
+    {type:'hot',emoji:'✈️',cat:'Flirty',q:'If we booked a spontaneous 48-hour getaway this weekend, what kind of destination are we picking?',hint:'Beach cabin, neon city, secluded mountains.'},
+    {type:'hot',emoji:'👂',cat:'Flirty',q:'What is a compliment you secretly wish people noticed about you more often?',hint:'Beyond surface looks.'},
+    {type:'hot',emoji:'🤫',cat:'Flirty',q:'What would your closest friend tell me I need to know before dating you?',hint:'The loving warning.'},
+    {type:'hot',emoji:'🏆',cat:'Flirty',q:'Are you going to let me win this game, or am I going to have to earn every point?',hint:'Competitive flirting.'},
+  ],
+
+  // ─── CURSE WORD / NO FILTER (18+) ───
+  // DRAFT: Cameron approves these during app testing
+  nofilter: [
+    {type:'funny',emoji:'🤬',cat:'No Filter',q:'What is the most colossal load of bullshit you have ever told someone to escape a terrible date?',hint:'Did they believe you or know you were lying?'},
+    {type:'funny',emoji:'🐍',cat:'No Filter',q:'Who is the most toxic, chaotic individual you kept around in your life for way too damn long?',hint:'Why did you put up with it?'},
+    {type:'funny',emoji:'🤷',cat:'No Filter',q:'What is something popular that you genuinely do not give a single flying fuck about?',hint:'Trends, influencers, holidays, sports.'},
+    {type:'funny',emoji:'🧂',cat:'No Filter',q:'What is the pettiest, most ridiculous grudge you are still actively holding against someone?',hint:'Will you ever let it go? Probably not.'},
+    {type:'funny',emoji:'🌋',cat:'No Filter',q:'When was the last time you completely lost your shit, and in hindsight was it fully justified?',hint:'The breaking point.'},
+    {type:'normal',emoji:'🧨',cat:'No Filter',q:'What is an opinion you hold about modern society that would get you instantly canceled on Twitter/X?',hint:'Unfiltered truth.'},
+    {type:'funny',emoji:'🤥',cat:'No Filter',q:'What is the most absurd, ridiculous lie you have ever told to impress someone or look cooler?',hint:'Did anyone call you out?'},
+    {type:'normal',emoji:'🗑️',cat:'No Filter',q:'Finish this: The absolute worst thing anyone can do on a first date is ______.',hint:'Fill in the blank.'},
+    {type:'funny',emoji:'🤦',cat:'No Filter',q:'What is a mistake you made that you knew was a complete disaster the exact second you did it?',hint:'The instant regret.'},
+    {type:'funny',emoji:'💸',cat:'No Filter',q:'What is the dumbest, most embarrassing thing you have ever wasted hard-earned money on?',hint:'Where is that item right now?'},
+    {type:'normal',emoji:'😤',cat:'No Filter',q:'What is a habit people have in public that makes your blood boil immediately?',hint:'Speakerphones, slow walkers, elevator etiquette.'},
+    {type:'funny',emoji:'👻',cat:'No Filter',q:'Have you ever ghosted someone who genuinely did not deserve it, and what was your cowardly excuse?',hint:'Confess your sins.'},
+    {type:'normal',emoji:'🍿',cat:'No Filter',q:'What is your most unhinged, trashy guilty pleasure that you defend fiercely?',hint:'Reality TV, junk food, tabloid drama.'},
+    {type:'funny',emoji:'🚪',cat:'No Filter',q:'What is something weird you do when you are completely alone that would horrify a date?',hint:'The creature habits.'},
+    {type:'normal',emoji:'🎯',cat:'No Filter',q:'What is a brutal truth someone told you about yourself that stung like hell but was 100% accurate?',hint:'Did you change because of it?'},
+    {type:'normal',emoji:'👀',cat:'No Filter',q:'Finish this: People who say "I hate drama" are always the ones who ______.',hint:'Fill in the blank.'},
+    {type:'funny',emoji:'💀',cat:'No Filter',q:'What is the most disastrous piece of romantic advice you ever gave a friend that totally backfired?',hint:'Did their relationship survive?'},
+    {type:'normal',emoji:'🚩',cat:'No Filter',q:'What is a glaring relationship red flag you willfully ignored because you were lonely or horny?',hint:'How badly did that end?'},
+    {type:'funny',emoji:'🏃',cat:'No Filter',q:'What is the most cowardly, conflict-avoidant thing you have ever done in your adult life?',hint:'Hiding behind a grocery aisle counts.'},
+    {type:'normal',emoji:'🎭',cat:'No Filter',q:'What is a social cause or trend that you pretend to care about purely for social survival?',hint:'The honest admission.'},
+    {type:'funny',emoji:'📱',cat:'No Filter',q:'If your unfiltered phone search history was projected on a billboard right now, how screwed are you?',hint:'What would require the most explaining?'},
+    {type:'normal',emoji:'⚖️',cat:'No Filter',q:'What is the most hypocritical thing you do on a weekly basis while judging others for it?',hint:'Self-awareness test.'},
+    {type:'funny',emoji:'💼',cat:'No Filter',q:'What is a ridiculous exaggeration or lie you put on a resume or job interview that miraculously worked?',hint:'Fake it till you make it.'},
+    {type:'normal',emoji:'😈',cat:'No Filter',q:'Who is someone in your extended circle that you dislike intensely for literally petty, irrational reasons?',hint:'Their face, their laugh, their vibe.'},
+    {type:'funny',emoji:'💥',cat:'No Filter',q:'What was the most explosive, uncensored fight you have ever had with a partner or family member?',hint:'What was the silly spark that started it?'},
+    {type:'normal',emoji:'🏆',cat:'No Filter',q:'Finish this: You can tell a person is completely full of shit when they ______.',hint:'Fill in the blank.'},
+    {type:'funny',emoji:'🤦',cat:'No Filter',q:'What is something you are remarkably, embarrassingly terrible at despite having tried for years?',hint:'Driving, dancing, cooking, flirting.'},
+    {type:'normal',emoji:'🛡️',cat:'No Filter',q:'What is the most ruthless thing you have ever done to protect your own peace and cut someone off?',hint:'Cold turkey cut-off.'},
+    {type:'normal',emoji:'🪞',cat:'No Filter',q:'If you had to be 100% brutally honest, what is your single deepest personality insecurity?',hint:'The raw version.'},
+    {type:'funny',emoji:'🍻',cat:'No Filter',q:'Finish this: If tonight turns into an absolute trainwreck, at least we can say ______.',hint:'Fill in the blank.'},
+  ],
+
+  // ─── ROAST (18+): 30 DATE ROASTS + 30 FRIEND ROASTS ───
+  // DRAFT: Cameron approves these during app testing
+  roast: [
+    // 30 Date Roasts (who: 'date')
+    {type:'funny',emoji:'🎯',cat:'Date Roast',who:'date',q:'What about my vibe right now screams "I spent way too long getting ready for this"?',hint:'Roast your date gently.'},
+    {type:'funny',emoji:'🚩',cat:'Date Roast',who:'date',q:'Based on what you have seen so far, what is my most obvious red flag that I think is charming?',hint:'Call it out.'},
+    {type:'funny',emoji:'🎭',cat:'Date Roast',who:'date',q:'If my personality was an overpriced beverage at a pretentious cafe, what would it be?',hint:'Match the drink to the ego.'},
+    {type:'funny',emoji:'👀',cat:'Date Roast',who:'date',q:'What would my dating app profile look like if it was written by my most brutally honest ex?',hint:'The uncensored bio.'},
+    {type:'funny',emoji:'🌽',cat:'Date Roast',who:'date',q:'What is the corniest, most rehearsed thing I have said or done so far on this date?',hint:'Don\'t let them get away with it.'},
+    {type:'funny',emoji:'📺',cat:'Date Roast',who:'date',q:'If I was a contestant on a trashy reality dating show, how many episodes before I cry on camera?',hint:'Episode one or two?'},
+    {type:'funny',emoji:'🎧',cat:'Date Roast',who:'date',q:'What is a trend or hobby I look like I hopped onto about three years after everyone else stopped doing it?',hint:'Late to the party.'},
+    {type:'funny',emoji:'🧊',cat:'Date Roast',who:'date',q:'What topic do I clearly think I sound like an intellectual genius on, but actually know very little about?',hint:'The armchair philosopher.'},
+    {type:'funny',emoji:'🛋️',cat:'Date Roast',who:'date',q:'What is something I do or say that immediately screams "yep, this person definitely lives alone"?',hint:'The solitary habits.'},
+    {type:'funny',emoji:'👟',cat:'Date Roast',who:'date',q:'If you had to roast my shoes, jacket, or general aesthetic right now, what is the punchline?',hint:'Fashion police.'},
+    {type:'funny',emoji:'🚗',cat:'Date Roast',who:'date',q:'What kind of unhinged road rage or backseat driving energy do I give off?',hint:'Judge the driving style.'},
+    {type:'funny',emoji:'📱',cat:'Date Roast',who:'date',q:'What kind of embarrassing text message from me would make someone cringe on the other end?',hint:'Too many emojis, paragraph essays, or dry "k".'},
+    {type:'funny',emoji:'🥊',cat:'Date Roast',who:'date',q:'If we got into our very first argument, what is my default toxic debating style?',hint:'The silent treatment or dramatic gestures?'},
+    {type:'funny',emoji:'📻',cat:'Date Roast',who:'date',q:'What is the most generic, basic-taste thing about my music, movie, or food preferences?',hint:'Expose the vanilla taste.'},
+    {type:'funny',emoji:'🦹',cat:'Date Roast',who:'date',q:'What fictional cartoon villain or chaotic character do I resemble on my absolute worst day?',hint:'Find the match.'},
+    {type:'funny',emoji:'🍳',cat:'Date Roast',who:'date',q:'If you had to guess my most catastrophic kitchen disaster, what caught fire or ruined the meal?',hint:'Culinary tragedy.'},
+    {type:'funny',emoji:'🏋️',cat:'Date Roast',who:'date',q:'What is a hobby or fitness phase I look like I bought all the expensive gear for and never actually touched?',hint:'The unused equipment.'},
+    {type:'funny',emoji:'💬',cat:'Date Roast',who:'date',q:'What is my biggest physical tell when I am trying to sound significantly cooler than I actually am?',hint:'The posture shift.'},
+    {type:'funny',emoji:'🍿',cat:'Date Roast',who:'date',q:'What is a pet peeve of yours that I have probably already committed twice tonight without realizing it?',hint:'Call them out.'},
+    {type:'funny',emoji:'⚖️',cat:'Date Roast',who:'date',q:'If my texting habits were put on trial, what would the formal criminal charges be?',hint:'Unlawful ghosting or excessive voice notes.'},
+    {type:'funny',emoji:'🚨',cat:'Date Roast',who:'date',q:'If your friends warned you about someone with my exact vibe before tonight, what warning did they give?',hint:'The friend alert.'},
+    {type:'funny',emoji:'🛒',cat:'Date Roast',who:'date',q:'What is something ridiculous I probably spend an absurd amount of money on at the grocery store or target?',hint:'The impulse aisle.'},
+    {type:'funny',emoji:'💤',cat:'Date Roast',who:'date',q:'What kind of terrible sleeper do I look like? Blanket stealer, loud snorer, or tosses like an alligator?',hint:'Guess the bedtime chaos.'},
+    {type:'funny',emoji:'📸',cat:'Date Roast',who:'date',q:'What is the funniest assumption you made about me before we sat down to talk tonight?',hint:'Preconceived notions.'},
+    {type:'funny',emoji:'🕶️',cat:'Date Roast',who:'date',q:'If I was trying to play it smooth right now, on a scale of 1 to 10, how transparent is the effort?',hint:'Give an honest score.'},
+    {type:'funny',emoji:'🧹',cat:'Date Roast',who:'date',q:'What habit do I have that would test the patience of an innocent roommate or spouse within 48 hours?',hint:'Dishes in the sink, laundry on the chair.'},
+    {type:'funny',emoji:'🎂',cat:'Date Roast',who:'date',q:'How dramatic do you think I get when it is my birthday week?',hint:'Low-key or demanding crown?'},
+    {type:'funny',emoji:'🍸',cat:'Date Roast',who:'date',q:'What drink order from me would completely confirm your worst suspicions about my personality?',hint:'The drink diagnosis.'},
+    {type:'funny',emoji:'🗓️',cat:'Date Roast',who:'date',q:'What is the pettiest, silliest thing you could envision us getting into an argument about in six months?',hint:'Thermostat settings or restaurant choices.'},
+    {type:'funny',emoji:'❤️',cat:'Date Roast',who:'date',q:'Now that you have roasted me: what is one genuinely charming quirk you have noticed tonight?',hint:'End on a sweet burn.'},
+
+    // 30 Friend Roasts (who: 'friend')
+    {type:'funny',emoji:'🎯',cat:'Friend Roast',who:'friend',q:'What is the dumbest piece of life or romantic advice anyone in this room has ever handed out?',hint:'Who said it and who suffered?'},
+    {type:'funny',emoji:'💔',cat:'Friend Roast',who:'friend',q:'Point on 3: Who here has the most consistently catastrophic taste in romantic partners?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🤫',cat:'Friend Roast',who:'friend',q:'What is something everyone in this friend group knows about you that you foolishly think is a secret?',hint:'Expose the open secret.'},
+    {type:'funny',emoji:'🤒',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is the absolute biggest drama queen when they catch a mild common cold?',hint:'Point on 3.'},
+    {type:'funny',emoji:'📜',cat:'Friend Roast',who:'friend',q:'What is a story about someone here that this group will never, ever allow them to live down?',hint:'Recount the legend.'},
+    {type:'funny',emoji:'👮',cat:'Friend Roast',who:'friend',q:'Point on 3: Who here would fold and confess within 45 seconds under police interrogation?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🤡',cat:'Friend Roast',who:'friend',q:'What was the most delusional ambition or get-rich-quick scheme anyone in this group ever pitched?',hint:'We all smiled and nodded.'},
+    {type:'funny',emoji:'💸',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is the cheapest person when the dinner bill arrives and it is time to calculate tip?',hint:'Point on 3.'},
+    {type:'funny',emoji:'⌛',cat:'Friend Roast',who:'friend',q:'What habit does one person in this group have that tests everyone else\'s collective sanity?',hint:'Lateness, interrupting, disappearing.'},
+    {type:'funny',emoji:'🚗',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is most likely to ruin the positive energy on a road trip within the first hour?',hint:'Point on 3.'},
+    {type:'funny',emoji:'💇',cat:'Friend Roast',who:'friend',q:'What was the single worst haircut or style phase in the documented photographic history of this group?',hint:'Who committed the crime?'},
+    {type:'funny',emoji:'📱',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is the biggest hypocrite about leaving people on "read" while being on their phone 24/7?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🛌',cat:'Friend Roast',who:'friend',q:'What is the most ridiculous, transparent excuse someone here has used to cancel group plans at the last minute?',hint:'The flake award.'},
+    {type:'funny',emoji:'👑',cat:'Friend Roast',who:'friend',q:'Point on 3: Who in this room genuinely believes they are the main character of this entire city?',hint:'Point on 3.'},
+    {type:'funny',emoji:'📉',cat:'Friend Roast',who:'friend',q:'If someone here\'s worst financial decision was erected as a marble statue, what would it look like?',hint:'The bad purchase.'},
+    {type:'funny',emoji:'🔑',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is most likely to lose their phone, wallet, and apartment keys on a normal night out?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🙄',cat:'Friend Roast',who:'friend',q:'What is an opinion someone in this circle holds that makes everyone else roll their eyes into their skulls?',hint:'The recurring lecture.'},
+    {type:'funny',emoji:'🏝️',cat:'Friend Roast',who:'friend',q:'Point on 3: Who would be the absolute worst person to be stranded on a deserted island with?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🍺',cat:'Friend Roast',who:'friend',q:'What is the most embarrassing, legendary drunken or late-night story someone here wants buried forever?',hint:'Time to unearth it.'},
+    {type:'funny',emoji:'🧱',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is the most stubborn person even after they have been proven 100% mathematically wrong?',hint:'Point on 3.'},
+    {type:'funny',emoji:'💪',cat:'Friend Roast',who:'friend',q:'What is a skill or achievement someone here constantly flexes that literally nobody else cares about?',hint:'The humble brag.'},
+    {type:'funny',emoji:'🍽️',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is most likely to cause an awkward, cringe scene in front of a waiter or bartender?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🔄',cat:'Friend Roast',who:'friend',q:'What is a life problem someone in this group complains about incessantly but takes zero action to solve?',hint:'The broken record.'},
+    {type:'funny',emoji:'📸',cat:'Friend Roast',who:'friend',q:'Point on 3: Who has the most chaotic, unhinged, blackmail-rich camera roll right this second?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🤥',cat:'Friend Roast',who:'friend',q:'What was a lie someone told this group that was so bad everyone immediately saw through it and laughed?',hint:'The failed fib.'},
+    {type:'funny',emoji:'🛑',cat:'Friend Roast',who:'friend',q:'Point on 3: Who is the most terrifying person to be a passenger with when they are behind the wheel?',hint:'Point on 3.'},
+    {type:'funny',emoji:'🎙️',cat:'Friend Roast',who:'friend',q:'What is the most unhinged four-minute voice note anyone in this group has ever sent into the group chat?',hint:'The podcast episode.'},
+    {type:'funny',emoji:'📶',cat:'Friend Roast',who:'friend',q:'Point on 3: Who would experience physical withdrawal symptoms first if their WiFi went down for 24 hours?',hint:'Point on 3.'},
+    {type:'funny',emoji:'⚠️',cat:'Friend Roast',who:'friend',q:'If everyone in this room had a mandatory warning label tattooed on their forehead, what would yours say?',hint:'Your toxic label.'},
+    {type:'funny',emoji:'🍻',cat:'Friend Roast',who:'friend',q:'Now that we\'ve roasted each other: toast the group with the most honest, genuine compliment you have.',hint:'Group hug.'},
+  ],
 };
 
-// ── SEASONAL DETECTION ──
-function getCurrentSeason(){
-  var m = new Date().getMonth()+1;
-  if(m===1) return 'newyear';
-  if(m===2) return 'valentine';
-  if(m>=6&&m<=8) return 'summer';
-  if(m===12) return 'holiday';
-  return null;
+// ── SEASONAL CONFIG & DETECTION (Section 6) ──
+// Configurable seasonal windows. Windows can cross New Year.
+var SEASONS = [
+  {id:'holiday', name:'Holiday Pack', icon:'🎄', start:'12-01', end:'12-31', desc:'Free through December · Cozy & nostalgic', returnDate:'Dec 1'},
+  {id:'newyear', name:'New Year Pack', icon:'🥂', start:'12-26', end:'01-31', desc:'Free through January · Fresh start questions', returnDate:'Dec 26'},
+  {id:'valentine', name:'Valentine Pack', icon:'💌', start:'02-01', end:'02-28', desc:'Free through February · Love & connection', returnDate:'Feb 1'},
+  {id:'summer', name:'Summer Pack', icon:'☀️', start:'06-01', end:'08-31', desc:'Free June–August · Adventure & warmth', returnDate:'Jun 1'}
+];
+
+var SEASONAL_INFO = {};
+SEASONS.forEach(function(s){
+  SEASONAL_INFO[s.id] = {icon: s.icon, name: s.name, desc: s.desc};
+});
+
+function isSeasonActive(s, customDate){
+  var now = customDate || new Date();
+  var year = now.getFullYear();
+  var startParts = s.start.split('-');
+  var endParts = s.end.split('-');
+  var startM = parseInt(startParts[0], 10);
+  var startD = parseInt(startParts[1], 10);
+  var endM = parseInt(endParts[0], 10);
+  var endD = parseInt(endParts[1], 10);
+
+  if(startM <= endM){
+    var startDate = new Date(year, startM - 1, startD, 0, 0, 0);
+    var endDate = new Date(year, endM - 1, endD, 23, 59, 59);
+    return now >= startDate && now <= endDate;
+  } else {
+    // Crosses year boundary (e.g. 12-26 to 01-31)
+    var currM = now.getMonth() + 1;
+    if(currM >= startM){
+      var startDate = new Date(year, startM - 1, startD, 0, 0, 0);
+      var endDate = new Date(year + 1, endM - 1, endD, 23, 59, 59);
+      return now >= startDate && now <= endDate;
+    } else {
+      var startDate = new Date(year - 1, startM - 1, startD, 0, 0, 0);
+      var endDate = new Date(year, endM - 1, endD, 23, 59, 59);
+      return now >= startDate && now <= endDate;
+    }
+  }
 }
-var SEASONAL_INFO = {
-  newyear:{icon:'🥂',name:'New Year Pack',desc:'Free through January · Fresh start questions'},
-  valentine:{icon:'💌',name:'Valentine Pack',desc:'Free through February · Love & connection'},
-  summer:{icon:'☀️',name:'Summer Pack',desc:'Free June–August · Adventure & warmth'},
-  holiday:{icon:'🎄',name:'Holiday Pack',desc:'Free through December · Cozy & nostalgic'},
-};
+
+function getActiveSeasons(){
+  var active = [];
+  SEASONS.forEach(function(s){
+    if(isSeasonActive(s)) active.push(s);
+  });
+  return active;
+}
+
+function getCurrentSeason(){
+  var active = getActiveSeasons();
+  return active.length > 0 ? active[0].id : null;
+}
+
+function checkSeasonalPopup(){
+  var now = new Date();
+  var year = now.getFullYear();
+  var active = getActiveSeasons();
+  for(var i = 0; i < active.length; i++){
+    var s = active[i];
+    var seenKey = 'fovu_season_seen_' + s.id + '_' + year;
+    if(!localStorage.getItem(seenKey)){
+      localStorage.setItem(seenKey, '1');
+      showSeasonalModal(s);
+      break;
+    }
+  }
+}
+
+function showSeasonalModal(s){
+  var modal = document.getElementById('seasonalModal');
+  if(!modal) return;
+  document.getElementById('seasonalModalIcon').textContent = s.icon;
+  document.getElementById('seasonalModalTitle').textContent = s.name + ' is back!';
+  var endParts = s.end.split('-');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var endDateStr = months[parseInt(endParts[0],10)-1] + ' ' + parseInt(endParts[1],10);
+  document.getElementById('seasonalModalDesc').textContent = s.name + ' is free until ' + endDateStr + '. Celebrate the season with free conversational cards!';
+  var playBtn = document.getElementById('seasonalModalPlayBtn');
+  playBtn.onclick = function(){
+    modal.style.display = 'none';
+    startMode(s.id);
+  };
+  modal.style.display = 'flex';
+}
+
+function updateSeasonalStoreTiles(){
+  var holidayActive = isSeasonActive(SEASONS[0]);
+  var tile = document.getElementById('storePackHoliday');
+  var badge = document.getElementById('badgePackHoliday');
+  var price = document.getElementById('pricePackHoliday');
+  var btn = document.getElementById('btnPackHoliday');
+  if(!tile) return;
+  if(holidayActive){
+    tile.classList.remove('pack-seasonal-locked');
+    badge.textContent = 'FREE';
+    badge.className = 'pack-badge pb-free';
+    price.textContent = 'Seasonal free';
+    price.className = 'pack-price free';
+    btn.textContent = 'Play';
+  } else {
+    tile.classList.add('pack-seasonal-locked');
+    badge.textContent = 'BACK DEC 1';
+    badge.className = 'pack-badge';
+    badge.style.background = 'rgba(255,255,255,.1)';
+    badge.style.color = 'rgba(255,255,255,.6)';
+    price.textContent = 'Back Dec 1';
+    price.className = 'pack-price';
+    btn.textContent = 'Back Dec 1';
+  }
+}
+
+function handleSeasonalPackClick(id){
+  for(var i=0; i<SEASONS.length; i++){
+    if(SEASONS[i].id === id){
+      if(isSeasonActive(SEASONS[i])){
+        startMode(id);
+      } else {
+        playToast(SEASONS[i].name + ' returns free on ' + SEASONS[i].returnDate + '!');
+      }
+      return;
+    }
+  }
+  startMode(id);
+}
 function showAge(){
   showScreen('ageSelect');
 }
@@ -1898,7 +2704,18 @@ function showMidUpsellV2(){
 
 function startMode(mode){
   currentMode = mode;
+  gmaGuesses = 0;
+  gmaMatches = 0;
+  currentGmaGuess = '';
+
+  // Mode specific card filtering
   var pool = QUESTIONS[mode] || QUESTIONS.deep;
+  if(mode === 'roast'){
+    // Roast pack has date half and friend half
+    pool = QUESTIONS.roast.filter(function(c){
+      return c.who === 'date';
+    });
+  }
 
   // Quick Spark — just 5 cards, no milestone, no breathers
   if(mode === 'quickspark'){
@@ -1958,6 +2775,40 @@ function showCard(){
   if(cardIndex >= deck.length){ showEnd(); return; }
   var c = deck[cardIndex];
   var card = document.getElementById('mainCard');
+  currentGmaGuess = ''; // Clear typed guess when card advances
+
+  // GMA and Party Mode Card Elements
+  var gmaWrap = document.getElementById('gmaBtnWrap');
+  var gmaAuto = document.getElementById('gmaAutoToggle');
+  var partyWrap = document.getElementById('partyPointWrap');
+  var partyBadge = document.getElementById('partyReaderBadge');
+
+  if(currentMode === 'party'){
+    if(gmaWrap) gmaWrap.style.display = 'none';
+    if(gmaAuto) gmaAuto.style.display = 'none';
+    if(partyBadge){
+      partyBadge.style.display = 'inline-block';
+      partyBadge.textContent = '🎤 ' + (partyPlayers[partyReaderIndex] || 'Player ' + (partyReaderIndex + 1)) + ' reads';
+    }
+    var isPointQ = c.cat === 'Most Likely To' || (c.q && (c.q.indexOf('Most likely') > -1 || c.q.indexOf('most likely') > -1 || c.q.indexOf('Point on 3') > -1));
+    if(partyWrap) partyWrap.style.display = isPointQ ? 'block' : 'none';
+  } else {
+    if(partyBadge) partyBadge.style.display = 'none';
+    if(partyWrap) partyWrap.style.display = 'none';
+    var isMilestone = c.type === 'milestone';
+    if(gmaWrap) gmaWrap.style.display = (isBeta && !isMilestone) ? 'block' : 'none';
+    if(gmaAuto) gmaAuto.style.display = isBeta ? 'inline-block' : 'none';
+
+    // Auto-open GMA if enabled
+    if(isBeta && !isMilestone && localStorage.getItem('fovu_gma_auto') === '1'){
+      setTimeout(function(){
+        // Only auto open if no upsell or other modal is open
+        if(!document.getElementById('midUpsell') && !document.getElementById('genUnlockOverlay')){
+          openGmaSheet();
+        }
+      }, 250);
+    }
+  }
 
   // Update progress
   var pct = (cardIndex/deck.length)*100;
@@ -1993,6 +2844,18 @@ function nextCard(){
   _cardBusy = true;
   setTimeout(function(){ _cardBusy = false; }, 500);
   var card = document.getElementById('mainCard');
+
+  // Party mode pass-and-play flow
+  if(currentMode === 'party'){
+    if(cardIndex + 1 >= deck.length){
+      cardIndex++;
+      showEnd();
+      return;
+    }
+    partyReaderIndex = (partyReaderIndex + 1) % partyPlayers.length;
+    showPartyPass();
+    return;
+  }
   card.classList.remove('card-enter');
   card.classList.add(Math.random()>.5?'card-exit-left':'card-exit-right');
 
@@ -2011,7 +2874,7 @@ function nextCard(){
 
   // Mid-game upsell after card 6 (only once per session, only on free modes)
   var freeModes = ['spark','deep','quickspark','crossgen','witty','direct','stories','chaos','values','life','wisdom','common','dealbreak','hotornot','storytelling','summer','holiday','newyear','valentine'];
-  var paidModes = ['spicy','traveller','popculture','bigbrain','datenight','rekindle','unsaid','gratitude','anniversary','latenight','roadtrip','friends'];
+  var paidModes = ALL_PACK_IDS.slice();
   var shownUpsell = sessionStorage.getItem('fovu_upsell_shown');
   if(cardIndex === 5 && !shownUpsell && freeModes.indexOf(currentMode) > -1){
     sessionStorage.setItem('fovu_upsell_shown','1');
@@ -2154,6 +3017,28 @@ function rateSession(rating){
     document.getElementById('endTitle').textContent = 'You made it.';
     var old = document.getElementById('suggestStrip');
     if(old) old.remove();
+  }
+
+  // GMA Tally Display on End Screen
+  var gmaRatingBox = document.getElementById('gmaRatingScore');
+  var gmaEndBox = document.getElementById('gmaEndScore');
+  if(gmaGuesses > 0){
+    var pct = Math.round((gmaMatches / gmaGuesses) * 100);
+    var msg = pct <= 33 ? 'Plenty left to learn.' : (pct <= 66 ? 'Getting warmer.' : 'Mind readers.');
+    var scoreText = 'You matched ' + gmaMatches + ' of ' + gmaGuesses + ' guesses (' + pct + '%).';
+    if(gmaRatingBox){
+      document.getElementById('gmaRatingText').textContent = scoreText;
+      document.getElementById('gmaRatingMsg').textContent = msg;
+      gmaRatingBox.style.display = 'block';
+    }
+    if(gmaEndBox){
+      document.getElementById('gmaEndText').textContent = scoreText;
+      document.getElementById('gmaEndMsg').textContent = msg;
+      gmaEndBox.style.display = 'block';
+    }
+  } else {
+    if(gmaRatingBox) gmaRatingBox.style.display = 'none';
+    if(gmaEndBox) gmaEndBox.style.display = 'none';
   }
 
   showScreen('endScreen');
@@ -2419,7 +3304,12 @@ function showRestoreModal() {
 
 // ── PACK STORE ──
 var UNLOCKED_PACKS = JSON.parse(localStorage.getItem('fovu_unlocked')||'[]');
-function isUnlocked(id){return UNLOCKED_PACKS.indexOf(id)>-1;}
+function isUnlocked(id){
+  for(var i=0; i<SEASONS.length; i++){
+    if(SEASONS[i].id === id && isSeasonActive(SEASONS[i])) return true;
+  }
+  return UNLOCKED_PACKS.indexOf(id) > -1;
+}
 function unlockPack(id){if(!isUnlocked(id)){UNLOCKED_PACKS.push(id);localStorage.setItem('fovu_unlocked',JSON.stringify(UNLOCKED_PACKS));}}
 
 // Auto-unlock on return from Stripe (?unlocked=packid)
@@ -2429,7 +3319,7 @@ function unlockPack(id){if(!isUnlocked(id)){UNLOCKED_PACKS.push(id);localStorage
   if(u){
     var unlockedIds = [];
     if(u === 'bundle'){
-      ['spicy','traveller','popculture','bigbrain','datenight','rekindle','unsaid','gratitude','anniversary','latenight','roadtrip','friends'].forEach(function(id){ unlockPack(id); unlockedIds.push(id); });
+      ALL_PACK_IDS.forEach(function(id){ unlockPack(id); unlockedIds.push(id); });
     } else {
       unlockPack(u); unlockedIds.push(u);
     }
@@ -2453,6 +3343,10 @@ function unlockPack(id){if(!isUnlocked(id)){UNLOCKED_PACKS.push(id);localStorage
   }
 })();
 
+// All paid packs (12 core + 4 adult)
+var ALL_PACK_IDS = ['spicy','traveller','popculture','bigbrain','datenight','rekindle','unsaid','gratitude','anniversary','latenight','roadtrip','friends','raunchy','flirty','nofilter','roast'];
+var ADULT_PACK_IDS = ['raunchy','flirty','nofilter','roast'];
+
 var PAYMENT_LINKS = {
   spicy:       'https://buy.stripe.com/28EbJ282HfXr3tncnH3wQ04',
   traveller:   'https://buy.stripe.com/aFa28s3Mr5iN3tn73n3wQ05',
@@ -2466,13 +3360,16 @@ var PAYMENT_LINKS = {
   latenight:   'https://buy.stripe.com/bJe6oIaaPbHb0hb73n3wQ0c',
   friends:     'https://buy.stripe.com/14A28sdn1h1vd3X1J33wQ0e',
   roadtrip:    'https://buy.stripe.com/dRmbJ2er59z3bZT73n3wQ0f',
-  bundle:      'https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g'
+  bundle:      'https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g',
+  raunchy:     'STRIPE_LINK_RAUNCHY',
+  flirty:      'STRIPE_LINK_FLIRTY',
+  nofilter:    'STRIPE_LINK_NOFILTER',
+  roast:       'STRIPE_LINK_ROAST'
 };
 
 // Inside the Android app (window.FovuAndroid) packs are bought with Google Play Billing, never Stripe
 var IS_PLAY = !!window.FovuAndroid;
 var PLAY_BUNDLE_ID = 'fovu_bundle_all';
-var ALL_PACK_IDS = ['spicy','traveller','popculture','bigbrain','datenight','rekindle','unsaid','gratitude','anniversary','latenight','roadtrip','friends'];
 var playBuyingPack = null;
 function playBuy(id){
   playBuyingPack = id;
@@ -2509,12 +3406,15 @@ if(IS_PLAY) window.addEventListener('load', function(){ window.FovuAndroid.resto
 function buyPack(id){
   if(isUnlocked(id)){ startMode(id); return; }
   if(IS_PLAY){ playBuy(id); return; }
+  var link = PAYMENT_LINKS[id];
+  if(!link || link.indexOf('STRIPE_LINK_') === 0 || link.indexOf('placeholder') > -1){
+    playToast('Stripe checkout for this pack is coming soon! In Google Play, unlock with Play Billing.');
+    return;
+  }
   captureEmailThenBuy(id, function(email){
-    var link = PAYMENT_LINKS[id];
-    if(!link) return;
-    // Pre-fill email in Stripe checkout if we have it
-    if(email) link += (link.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + encodeURIComponent(email);
-    window.location.href = link;
+    var finalLink = link;
+    if(email) finalLink += (finalLink.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + encodeURIComponent(email);
+    window.location.href = finalLink;
   });
 }
 
@@ -2607,6 +3507,11 @@ function closePreview(){
 }
 
 var PACK_PREVIEWS = {
+  party:      {emoji:'🎉',name:'Party Mode',samples:['Who here is most likely to accidentally join a cult and not realize it?','Everyone: What was your honest first impression of the person sitting to your right?','Who here would survive the shortest amount of time in a zombie apocalypse?']},
+  raunchy:    {emoji:'🔥',name:'Raunchy 18+',samples:['What is a subtle physical touch that instantly gets your attention?','Lights completely off, dim candlelight, or leave the lights on?','What is something someone did on a date that made sexual tension shoot through the roof?']},
+  flirty:     {emoji:'💋',name:'Flirty 18+',samples:['What was the very first thought that crossed your mind when you saw me tonight?','If you were planning to kiss me before this night ends, how would you orchestrate it?','What is your signature flirty look or smile that you know rarely fails?']},
+  nofilter:   {emoji:'🤬',name:'Curse Word / No Filter 18+',samples:['What is the most colossal load of bullshit you have ever told someone to escape a terrible date?','Who is the most toxic, chaotic individual you kept around for way too damn long?','What is something popular that you genuinely do not give a single flying fuck about?']},
+  roast:      {emoji:'🎯',name:'Roast 18+',samples:['What about my vibe right now screams "I spent way too long getting ready"?','Point on 3: Who here has the most consistently catastrophic taste in romantic partners?','What would my dating app profile look like if written by my most brutally honest ex?']},
   spicy:      {emoji:'\ud83c\udf36\ufe0f',name:'Spicy First Date',     samples:['What is something you find attractive that you have never admitted out loud before?','What would you do on a second date that you would never do on a first one?','What does chemistry actually feel like for you when it is real?']},
   traveller:  {emoji:'\ud83c\udf0d',name:'The Traveller',              samples:['What is the trip that changed the most about how you see yourself?','Is there a place you have been that you genuinely could have lived?','Have you ever felt genuinely alone while travelling in a way that was actually good?']},
   popculture: {emoji:'\ud83c\udfac',name:'Pop Culture Wars',           samples:['What is a critically acclaimed film that you think is genuinely overrated?','What is your most controversial opinion about a beloved piece of pop culture?','What fictional character do you relate to more than you are comfortable admitting?']},
