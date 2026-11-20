@@ -281,7 +281,7 @@ function initFovuEnhancements(){
 
 window.addEventListener('load', function(){
   initFovuEnhancements();
-  checkSeasonalPopup();
+  checkPreHolidayAlert();
 });
 
 </script>
@@ -2328,13 +2328,69 @@ var QUESTIONS = {
   ],
 };
 
-// ── SEASONAL CONFIG & DETECTION (Section 6) ──
-// Configurable seasonal windows. Windows can cross New Year.
+// ── SEASONAL CONFIG, PRE-HOLIDAY ALERTS & NOTIFICATIONS ──
+// Configurable seasonal windows and 1-week pre-holiday alerts/notifications.
 var SEASONS = [
-  {id:'holiday', name:'Holiday Pack', icon:'🎄', start:'12-01', end:'12-31', desc:'Free through December · Cozy & nostalgic', returnDate:'Dec 1'},
-  {id:'newyear', name:'New Year Pack', icon:'🥂', start:'12-26', end:'01-31', desc:'Free through January · Fresh start questions', returnDate:'Dec 26'},
-  {id:'valentine', name:'Valentine Pack', icon:'💌', start:'02-01', end:'02-28', desc:'Free through February · Love & connection', returnDate:'Feb 1'},
-  {id:'summer', name:'Summer Pack', icon:'☀️', start:'06-01', end:'08-31', desc:'Free June–August · Adventure & warmth', returnDate:'Jun 1'}
+  {
+    id: 'holiday',
+    name: 'Holiday Pack',
+    icon: '🎄',
+    start: '12-01',
+    end: '12-31',
+    desc: 'Free through December · Cozy & nostalgic',
+    returnDate: 'Dec 1',
+    holidayDate: '12-25',
+    alertStart: '12-18', // 1 week before Christmas
+    alertTitle: '🎄 Christmas is 1 week away!',
+    alertMsg: 'The Holiday Pack is now available with festive conversation cards. Open it up and celebrate together!',
+    notifTitle: '🎄 Christmas is 1 week away!',
+    notifMsg: 'New holiday conversation cards are waiting for you in Fovu.'
+  },
+  {
+    id: 'newyear',
+    name: 'New Year Pack',
+    icon: '🥂',
+    start: '12-26',
+    end: '01-31',
+    desc: 'Free through January · Fresh start questions',
+    returnDate: 'Dec 26',
+    holidayDate: '01-01',
+    alertStart: '12-25', // 1 week before New Year
+    alertTitle: '🥂 New Year is around the corner!',
+    alertMsg: 'Fresh start & reflection conversation cards are now open. Ring in the New Year with real talk!',
+    notifTitle: '🥂 Ready for the New Year?',
+    notifMsg: 'Fresh start conversation cards are now live in Fovu.'
+  },
+  {
+    id: 'valentine',
+    name: 'Valentine Pack',
+    icon: '💌',
+    start: '02-01',
+    end: '02-28',
+    desc: 'Free through February · Love & connection',
+    returnDate: 'Feb 1',
+    holidayDate: '02-14',
+    alertStart: '02-07', // 1 week before Valentine's Day
+    alertTitle: '💌 Valentine\'s Day is 1 week away!',
+    alertMsg: 'Romantic connection and date night cards are live. Perfect for your upcoming date night!',
+    notifTitle: '💌 Valentine\'s Day is 1 week away!',
+    notifMsg: 'Spark something special with free date cards in Fovu.'
+  },
+  {
+    id: 'summer',
+    name: 'Summer Pack',
+    icon: '☀️',
+    start: '06-01',
+    end: '08-31',
+    desc: 'Free June–August · Adventure & warmth',
+    returnDate: 'Jun 1',
+    holidayDate: '06-21',
+    alertStart: '05-25', // 1 week before summer season kickoff
+    alertTitle: '☀️ Summer cards are live!',
+    alertMsg: 'Warm weather adventure and road trip cards are now open. Ready for sunny conversations!',
+    notifTitle: '☀️ Summer is heating up!',
+    notifMsg: 'Break the ice with new summer questions in Fovu.'
+  }
 ];
 
 var SEASONAL_INFO = {};
@@ -2371,10 +2427,39 @@ function isSeasonActive(s, customDate){
   }
 }
 
+// Checks if today is within the pre-holiday alert window (1 week before holiday through season end)
+function isPreHolidayAlertActive(s, customDate){
+  var now = customDate || new Date();
+  var year = now.getFullYear();
+  var alertParts = (s.alertStart || s.start).split('-');
+  var endParts = s.end.split('-');
+  var startM = parseInt(alertParts[0], 10);
+  var startD = parseInt(alertParts[1], 10);
+  var endM = parseInt(endParts[0], 10);
+  var endD = parseInt(endParts[1], 10);
+
+  if(startM <= endM){
+    var startDate = new Date(year, startM - 1, startD, 0, 0, 0);
+    var endDate = new Date(year, endM - 1, endD, 23, 59, 59);
+    return now >= startDate && now <= endDate;
+  } else {
+    var currM = now.getMonth() + 1;
+    if(currM >= startM){
+      var startDate = new Date(year, startM - 1, startD, 0, 0, 0);
+      var endDate = new Date(year + 1, endM - 1, endD, 23, 59, 59);
+      return now >= startDate && now <= endDate;
+    } else {
+      var startDate = new Date(year - 1, startM - 1, startD, 0, 0, 0);
+      var endDate = new Date(year, endM - 1, endD, 23, 59, 59);
+      return now >= startDate && now <= endDate;
+    }
+  }
+}
+
 function getActiveSeasons(){
   var active = [];
   SEASONS.forEach(function(s){
-    if(isSeasonActive(s)) active.push(s);
+    if(isSeasonActive(s) || isPreHolidayAlertActive(s)) active.push(s);
   });
   return active;
 }
@@ -2384,17 +2469,50 @@ function getCurrentSeason(){
   return active.length > 0 ? active[0].id : null;
 }
 
-function checkSeasonalPopup(){
+// Sends native Android notification or Web Browser notification
+function sendSeasonalNotification(title, body){
+  try {
+    // 1. Native Android bridge
+    if(window.Android && typeof window.Android.showNotification === 'function'){
+      window.Android.showNotification(title, body);
+      return;
+    }
+    // 2. Web browser notification API
+    if('Notification' in window){
+      if(Notification.permission === 'granted'){
+        new Notification(title, { body: body, icon: 'https://fovuapp.app/apple-touch-icon.png' });
+      } else if(Notification.permission !== 'denied'){
+        Notification.requestPermission().then(function(perm){
+          if(perm === 'granted'){
+            new Notification(title, { body: body, icon: 'https://fovuapp.app/apple-touch-icon.png' });
+          }
+        });
+      }
+    }
+  } catch(e) {}
+}
+
+// Checks and displays the pre-holiday pop-up alert & sends notification
+function checkPreHolidayAlert(){
   var now = new Date();
   var year = now.getFullYear();
-  var active = getActiveSeasons();
-  for(var i = 0; i < active.length; i++){
-    var s = active[i];
-    var seenKey = 'fovu_season_seen_' + s.id + '_' + year;
-    if(!localStorage.getItem(seenKey)){
-      localStorage.setItem(seenKey, '1');
-      showSeasonalModal(s);
-      break;
+  for(var i = 0; i < SEASONS.length; i++){
+    var s = SEASONS[i];
+    if(isPreHolidayAlertActive(s)){
+      // Send notification once per season per year
+      var notifKey = 'fovu_season_notif_' + s.id + '_' + year;
+      if(!localStorage.getItem(notifKey)){
+        localStorage.setItem(notifKey, '1');
+        sendSeasonalNotification(s.notifTitle || (s.name + ' is live!'), s.notifMsg || s.desc);
+      }
+
+      // Show pop-up alert once per season per year
+      var alertKey = 'fovu_holiday_alert_seen_' + s.id + '_' + year;
+      if(!localStorage.getItem(alertKey)){
+        localStorage.setItem(alertKey, '1');
+        showSeasonalModal(s);
+        break;
+      }
     }
   }
 }
@@ -2403,12 +2521,10 @@ function showSeasonalModal(s){
   var modal = document.getElementById('seasonalModal');
   if(!modal) return;
   document.getElementById('seasonalModalIcon').textContent = s.icon;
-  document.getElementById('seasonalModalTitle').textContent = s.name + ' is back!';
-  var endParts = s.end.split('-');
-  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var endDateStr = months[parseInt(endParts[0],10)-1] + ' ' + parseInt(endParts[1],10);
-  document.getElementById('seasonalModalDesc').textContent = s.name + ' is free until ' + endDateStr + '. Celebrate the season with free conversational cards!';
+  document.getElementById('seasonalModalTitle').textContent = s.alertTitle || (s.name + ' is back!');
+  document.getElementById('seasonalModalDesc').textContent = s.alertMsg || s.desc;
   var playBtn = document.getElementById('seasonalModalPlayBtn');
+  playBtn.textContent = 'Play ' + s.name + ' Free →';
   playBtn.onclick = function(){
     modal.style.display = 'none';
     startMode(s.id);
