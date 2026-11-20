@@ -1507,7 +1507,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
     <div class="bundle-pricing">
       <div class="bundle-price">$6.99</div>
       <div class="bundle-was" id="bundleWasPrice">$31.84</div>
-      <a class="pack-btn pack-btn-buy" style="margin-top:6px;padding:7px 14px;" href="https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g">Get All</a>
+      <a class="pack-btn pack-btn-buy" id="bundleBuyBtn" style="margin-top:6px;padding:7px 14px;" href="https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g">Get All</a>
     </div>
   </div>
 
@@ -3036,6 +3036,7 @@ function showMidGameUpsell(){
   + '<div style="font-size:12px;color:rgba(255,255,255,.3);padding-top:8px;">+ 28 more cards in the pack</div>'
   + '</div>'
   + '<button id="midUpsellBuy" style="width:100%;background:linear-gradient(135deg,#f0874a,#c45e22);color:#fff;border:none;border-radius:14px;padding:16px;font-family:Outfit,sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">Unlock ' + p.name + ' — $1.99</button>'
+  + (isBundleUnlocked() ? '' : '<button id="midUpsellBundle" style="width:100%;background:rgba(240,135,74,.12);border:1.5px solid rgba(240,135,74,.4);border-radius:14px;padding:12px;color:#f0874a;font-family:Outfit,sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">🎁 Or get all 16 packs in the Full Spark Bundle — $6.99 (Save 78%)</button>')
   + '<button id="midUpsellSkip" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:13px;color:rgba(255,255,255,.35);font-family:Outfit,sans-serif;font-size:14px;cursor:pointer;">Keep playing the free deck</button>';
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
@@ -3044,6 +3045,13 @@ function showMidGameUpsell(){
     overlay.remove();
     buyPack(suggestId);
   });
+  var bUpsell = document.getElementById('midUpsellBundle');
+  if(bUpsell){
+    bUpsell.addEventListener('click', function(){
+      overlay.remove();
+      buyPack('bundle');
+    });
+  }
   document.getElementById('midUpsellSkip').addEventListener('click', function(){
     overlay.remove();
     var card = document.getElementById('mainCard');
@@ -3171,6 +3179,7 @@ function rateSession(rating){
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
+  if(id === 'packStore' && typeof updateStoreBadges === 'function') updateStoreBadges();
   // Push state so Android back button works correctly
   if(id !== 'matchScreen') {
     history.pushState({screen: id}, '', window.location.pathname);
@@ -3184,6 +3193,7 @@ window.addEventListener('popstate', function(e) {
     // Just activate the screen without pushing new history
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById(state.screen).classList.add('active');
+    if(state.screen === 'packStore' && typeof updateStoreBadges === 'function') updateStoreBadges();
   } else {
     // No state = back to match/splash
     showSplash();
@@ -3419,6 +3429,10 @@ function showRestoreModal() {
 }
 
 // ── PACK STORE ──
+// All paid packs (12 core + 4 adult)
+var ALL_PACK_IDS = ['spicy','traveller','popculture','bigbrain','datenight','rekindle','unsaid','gratitude','anniversary','latenight','roadtrip','friends','raunchy','flirty','nofilter','roast'];
+var ADULT_PACK_IDS = ['raunchy','flirty','nofilter','roast'];
+
 var UNLOCKED_PACKS = JSON.parse(localStorage.getItem('fovu_unlocked')||'[]');
 function isUnlocked(id){
   for(var i=0; i<SEASONS.length; i++){
@@ -3426,7 +3440,47 @@ function isUnlocked(id){
   }
   return UNLOCKED_PACKS.indexOf(id) > -1;
 }
-function unlockPack(id){if(!isUnlocked(id)){UNLOCKED_PACKS.push(id);localStorage.setItem('fovu_unlocked',JSON.stringify(UNLOCKED_PACKS));}}
+function isBundleUnlocked(){
+  if(!ALL_PACK_IDS || !ALL_PACK_IDS.length) return false;
+  for(var i=0; i<ALL_PACK_IDS.length; i++){
+    if(!isUnlocked(ALL_PACK_IDS[i])) return false;
+  }
+  return true;
+}
+function updateStoreBadges(){
+  var bBtn = document.getElementById('bundleBuyBtn');
+  if(bBtn && isBundleUnlocked()){
+    bBtn.textContent = '✓ Unlocked';
+    bBtn.style.background = '#10b981';
+    bBtn.style.color = '#fff';
+    bBtn.style.boxShadow = '0 4px 14px rgba(16,185,129,.35)';
+    bBtn.style.pointerEvents = 'none';
+  }
+  var cards = document.querySelectorAll('.pack-card');
+  for(var i=0; i<cards.length; i++){
+    var c = cards[i];
+    var click = c.getAttribute('onclick') || '';
+    var m = click.match(/buyPack\(['"]([^'"]+)['"]\)/);
+    if(m && m[1]){
+      var pid = m[1];
+      if(isUnlocked(pid)){
+        var btn = c.querySelector('.pack-btn-buy');
+        if(btn){
+          btn.textContent = 'Play';
+          btn.style.background = '#10b981';
+          btn.style.color = '#fff';
+        }
+      }
+    }
+  }
+}
+function unlockPack(id){
+  if(!isUnlocked(id)){
+    UNLOCKED_PACKS.push(id);
+    localStorage.setItem('fovu_unlocked',JSON.stringify(UNLOCKED_PACKS));
+  }
+  updateStoreBadges();
+}
 
 // Auto-unlock on return from Stripe (?unlocked=packid)
 (function(){
@@ -3458,10 +3512,6 @@ function unlockPack(id){if(!isUnlocked(id)){UNLOCKED_PACKS.push(id);localStorage
     },400);
   }
 })();
-
-// All paid packs (12 core + 4 adult)
-var ALL_PACK_IDS = ['spicy','traveller','popculture','bigbrain','datenight','rekindle','unsaid','gratitude','anniversary','latenight','roadtrip','friends','raunchy','flirty','nofilter','roast'];
-var ADULT_PACK_IDS = ['raunchy','flirty','nofilter','roast'];
 
 var PAYMENT_LINKS = {
   spicy:       'https://buy.stripe.com/28EbJ282HfXr3tncnH3wQ04',
@@ -3515,9 +3565,16 @@ window.onFovuPurchase = function(r){
   if(bought){
     playToast(pid === PLAY_BUNDLE_ID ? 'All packs unlocked!' : 'Pack unlocked!');
     if(bought !== 'bundle' && isUnlocked(bought)) startMode(bought);
+  } else if(pid === PLAY_BUNDLE_ID && !localStorage.getItem('fovu_bundle_welcomed')){
+    localStorage.setItem('fovu_bundle_welcomed', '1');
+    playToast('🎉 Welcome! Full Spark Bundle active — all 16 packs unlocked!');
   }
+  updateStoreBadges();
 };
-if(IS_PLAY) window.addEventListener('load', function(){ window.FovuAndroid.restorePurchases(); });
+window.addEventListener('load', function(){
+  updateStoreBadges();
+  if(IS_PLAY) window.FovuAndroid.restorePurchases();
+});
 
 function buyPack(id){
   if(isUnlocked(id)){ startMode(id); return; }
