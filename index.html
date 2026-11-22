@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"/>
 <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-50DSQFRY3C">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-50DSQFRY3C"></script>
+<script>
 // ─── FOVU 1.10 RUNTIME LOGIC: GMA, PARTY MODE, 18+ ADULT, SEASONS & BETA ───
 var isBeta = window.location.search.indexOf('beta=1') !== -1 || localStorage.getItem('fovu_beta') === '1';
 if(window.location.search.indexOf('beta=1') !== -1) localStorage.setItem('fovu_beta', '1');
@@ -262,17 +265,12 @@ function updateBundleUI(){
 
 // Page initialization & Beta check
 function initFovuEnhancements(){
-  if(isBeta){
-    var btnParty = document.getElementById('btnPartyEntry');
+  var btnParty = document.getElementById('btnPartyEntry');
     if(btnParty) btnParty.style.display = 'block';
     var splashParty = document.getElementById('splashPartyCard');
     if(splashParty) splashParty.style.display = 'block';
     var adultTitle = document.getElementById('adultSectionTitle');
     if(adultTitle) adultTitle.style.display = 'flex';
-  } else {
-    var adultTitle = document.getElementById('adultSectionTitle');
-    if(adultTitle) adultTitle.style.display = 'none';
-  }
   updateGmaAutoUI();
   updateAdultUI();
   updateBundleUI();
@@ -362,8 +360,6 @@ window.addEventListener('load', function(){
 
   gtag('config', 'G-50DSQFRY3C');
 </script>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
 <title>Fovu — Conversation Card Game for First Dates &amp; Date Night</title>
 <meta name="description" content="Fovu is a conversation card game for dates, from first date to date night. Put the phone between you and talk. Free decks to start, extra packs $1.99."/>
 <link rel="canonical" href="https://fovuapp.app/"/>
@@ -785,7 +781,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
 .age-picker select option{background:#1a1106;color:#fff;}
 
 /* ── CARD PACK STORE ── */
-#packStore{z-index:10;text-align:center;overflow-y:auto;padding:20px 20px;padding-bottom:max(100px, calc(var(--sab) + 80px));align-items:flex-start;justify-content:flex-start;}
+#packStore{z-index:10;text-align:center;overflow-y:auto;padding:20px 20px;padding-top:max(24px, calc(env(safe-area-inset-top, 0px) + 16px));padding-bottom:max(140px, calc(env(safe-area-inset-bottom, 0px) + 110px));align-items:flex-start;justify-content:flex-start;}
 .store-header{width:100%;text-align:center;padding:16px 0 20px;}
 .store-title{font-family:'Playfair Display',serif;font-size:32px;font-weight:900;margin-bottom:4px;}
 .store-sub{font-size:13px;color:var(--muted);}
@@ -830,7 +826,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
 .preview-card-sample{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:10px;}
 .preview-card-sample .pcs-q{font-size:14px;color:rgba(255,255,255,.88);line-height:1.5;margin-bottom:4px;}
 .preview-card-sample .pcs-hint{font-size:11px;color:var(--muted);}
-.store-back{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(13,10,6,.9);border:1px solid var(--border);border-radius:50px;padding:12px 28px;font-family:'Outfit',sans-serif;font-size:14px;color:var(--muted);cursor:pointer;backdrop-filter:blur(10px);z-index:20;transition:all .2s;}
+.store-back{position:fixed;bottom:max(24px, calc(env(safe-area-inset-bottom, 0px) + 20px));left:50%;transform:translateX(-50%);background:rgba(13,10,6,.9);border:1px solid var(--border);border-radius:50px;padding:12px 28px;font-family:'Outfit',sans-serif;font-size:14px;color:var(--muted);cursor:pointer;backdrop-filter:blur(10px);z-index:20;transition:all .2s;}
 .store-back:hover{color:var(--white);border-color:rgba(255,255,255,.2);}
 
 /* ── HOW DID IT GO ── */
@@ -2912,11 +2908,11 @@ function showCard(){
     if(partyBadge) partyBadge.style.display = 'none';
     if(partyWrap) partyWrap.style.display = 'none';
     var isMilestone = c.type === 'milestone';
-    if(gmaWrap) gmaWrap.style.display = (isBeta && !isMilestone) ? 'block' : 'none';
-    if(gmaAuto) gmaAuto.style.display = isBeta ? 'inline-block' : 'none';
+    if(gmaWrap) gmaWrap.style.display = (!isMilestone) ? 'block' : 'none';
+    if(gmaAuto) gmaAuto.style.display = 'inline-block';
 
     // Auto-open GMA if enabled
-    if(isBeta && !isMilestone && localStorage.getItem('fovu_gma_auto') === '1'){
+    if(!isMilestone && localStorage.getItem('fovu_gma_auto') === '1'){
       setTimeout(function(){
         // Only auto open if no upsell or other modal is open
         if(!document.getElementById('midUpsell') && !document.getElementById('genUnlockOverlay')){
