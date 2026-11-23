@@ -437,7 +437,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
 .store-header{width:100%;text-align:center;padding:16px 0 20px;}
 .store-title{font-family:'Playfair Display',serif;font-size:32px;font-weight:900;margin-bottom:4px;}
 .store-sub{font-size:13px;color:var(--muted);}
-.store-section-title{font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--amber-light);width:100%;text-align:left;margin:20px 0 12px;padding-left:2px;}
+.store-section-title{font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--amber-light);width:100%;text-align:left;margin:22px 0 12px;padding-left:2px;}
 .pack-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;}
 .pack-card{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:18px;padding:18px 14px;cursor:pointer;transition:all .2s;text-align:left;position:relative;overflow:hidden;}
 .pack-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--pack-color,rgba(240,135,74,.1)),transparent);opacity:0;transition:opacity .2s;pointer-events:none;}
@@ -1042,39 +1042,39 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--white);fo
   
   <div class="store-section-title" id="adultSectionTitle" style="display:flex;align-items:center;justify-content:space-between;">
     <span>🔞 18+ Adult Packs</span>
-    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text-dim, #888);">
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-dim, #888);">
       <input type="checkbox" id="adultContentToggle" onchange="onAdultToggleChange(this)" style="cursor:pointer;accent-color:#e11d48;" />
       Show 18+
     </label>
   </div>
   <div class="pack-grid" id="adultPackGrid" style="display:none;">
-    <div class="pack-card" style="--pack-color:rgba(244,63,94,.18);" onclick="playPackFree('raunchy')">
+    <div class="pack-card" style="--pack-color:rgba(244,63,94,.18);" onclick="buyPack('raunchy')">
       <span class="pack-badge pb-hot">🔞 18+</span>
       <span class="pack-emoji">🔥</span>
       <div class="pack-name">Raunchy</div>
       <div class="pack-desc">Spicy, unfiltered intimate questions. Zero embarrassment allowed.</div>
-      <div class="pack-footer"><span class="pack-price free">Free / Unlocked</span><button class="pack-btn pack-btn-free">Play</button></div>
+      <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('raunchy')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_raunchy">Buy</a></div>
     </div>
-    <div class="pack-card" style="--pack-color:rgba(236,72,153,.18);" onclick="playPackFree('flirty')">
+    <div class="pack-card" style="--pack-color:rgba(236,72,153,.18);" onclick="buyPack('flirty')">
       <span class="pack-badge pb-hot">🔞 18+</span>
       <span class="pack-emoji">💋</span>
       <div class="pack-name">Flirty</div>
       <div class="pack-desc">Seductive tension and romantic teasing. Find out where you stand.</div>
-      <div class="pack-footer"><span class="pack-price free">Free / Unlocked</span><button class="pack-btn pack-btn-free">Play</button></div>
+      <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('flirty')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_flirty">Buy</a></div>
     </div>
-    <div class="pack-card" style="--pack-color:rgba(168,85,247,.18);" onclick="playPackFree('nofilter')">
+    <div class="pack-card" style="--pack-color:rgba(168,85,247,.18);" onclick="buyPack('nofilter')">
       <span class="pack-badge pb-hot">🔞 18+</span>
       <span class="pack-emoji">🤬</span>
       <div class="pack-name">Curse Word / No Filter</div>
       <div class="pack-desc">Raw, blunt, swearing permitted. Brutal honesty only.</div>
-      <div class="pack-footer"><span class="pack-price free">Free / Unlocked</span><button class="pack-btn pack-btn-free">Play</button></div>
+      <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('nofilter')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_nofilter">Buy</a></div>
     </div>
-    <div class="pack-card" style="--pack-color:rgba(234,88,12,.18);" onclick="playPackFree('roast')">
+    <div class="pack-card" style="--pack-color:rgba(234,88,12,.18);" onclick="buyPack('roast')">
       <span class="pack-badge pb-hot">🔞 18+</span>
       <span class="pack-emoji">🎯</span>
       <div class="pack-name">Roast</div>
       <div class="pack-desc">Playful digs and mutual roasting. Best for couples who can laugh.</div>
-      <div class="pack-footer"><span class="pack-price free">Free / Unlocked</span><button class="pack-btn pack-btn-free">Play</button></div>
+      <div class="pack-footer"><span class="pack-price">$1.99</span><button class="pack-peek-link" onclick="event.stopPropagation();previewPack('roast')">See sample cards</button><a class="pack-btn pack-btn-buy" href="https://buy.stripe.com/placeholder_roast">Buy</a></div>
     </div>
   </div>
 
@@ -2671,7 +2671,11 @@ var PAYMENT_LINKS = {
   latenight:   'https://buy.stripe.com/bJe6oIaaPbHb0hb73n3wQ0c',
   friends:     'https://buy.stripe.com/14A28sdn1h1vd3X1J33wQ0e',
   roadtrip:    'https://buy.stripe.com/dRmbJ2er59z3bZT73n3wQ0f',
-  bundle:      'https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g'
+  bundle:      'https://buy.stripe.com/cNieVedn19z34xr0EZ3wQ0g',
+  raunchy:     'https://buy.stripe.com/placeholder_raunchy',
+  flirty:      'https://buy.stripe.com/placeholder_flirty',
+  nofilter:    'https://buy.stripe.com/placeholder_nofilter',
+  roast:       'https://buy.stripe.com/placeholder_roast'
 };
 
 // Inside the Android app (window.FovuAndroid) packs are bought with Google Play Billing, never Stripe
